@@ -1,0 +1,8 @@
+[Fri Dec 24 14:56:57 2021]: 				[FILE STORAGE SERVER]
+[Fri Dec 24 14:56:57 2021]: Avvio del server in corso...
+[Fri Dec 24 14:56:57 2021]: Applicazione della maschera hai segnali SIGINT - SIGQUIT - SIGHUP per gestione personalizzata
+[Fri Dec 24 14:56:57 2021]: Lettura delle impostazioni del server da config.txt
+[Fri Dec 24 14:56:57 2021]: Apertura pipe comunicazione Thread Manager - Thread Worker per riabilitazione del client in lettura sulla socket
+[Fri Dec 24 14:56:57 2021]: Apertura della socket socket.sk
+
+[Fri Dec 24 14:57:02 2021]: Server in fase di spegnimento...
