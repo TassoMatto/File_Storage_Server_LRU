@@ -37,11 +37,21 @@
 
 
     /**
+     * @brief               Struttura per rappresentare la funzione di free dei dati
+     * @struct              Free_Data
+     */
+    typedef void (*Free_Data)(void *);
+
+
+    /**
      * @brief                       Funzione che inserisce in coda un elemento
      * @fun                         insertIntoQueue
      * @return                      Ritorna la lista aggiornata in caso di successo; altrimenti ritorna NULL [setta errno]
      */
     Queue* insertIntoQueue(Queue *, void *, size_t);
+
+
+    int searchElement(Queue *, void *, Compare_Fun);
 
 
     /**
@@ -68,7 +78,7 @@
      * @brief               Cancella tutta la coda
      * @fun                 destroyQueue
      */
-    void destroyQueue(Queue **q);
+    void destroyQueue(Queue **q, Free_Data);
 
 
 #endif //FILE_STORAGE_SERVER_LRU_QUEUE_H

@@ -9,27 +9,135 @@
 
 
 /**
+ * @brief                   Macro che controlla che se bisogna espellere un file dal server
+ * @macro                   MEMORY_MISS
+ * @param ADD_FILE          Indica se un file viene aggiunto
+ * @param SIZE_TO_ADD       Dimensione da andare ad aggiungere
+ */
+#define MEMORY_MISS(ADD_FILE, SIZE_TO_ADD)                                                                                                  \
+    while((cache->maxFileOnline < (cache->fileOnline + (ADD_FILE))) || (cache->maxBytesOnline < (cache->bytesOnline + (SIZE_TO_ADD)))) {    \
+        (cache->numeroMemoryMiss)++;                                                                                                        \
+        numKick++;                                                                                                                          \
+        if((kickedFiles = (myFile **) realloc(kickedFiles, (numKick+1)*sizeof(myFile *))) == NULL) { free(copy); return NULL; }             \
+        if((error = pthread_mutex_lock(((cache->LRU)[0])->lockAccessFile)) != 0) {                                                          \
+            errno = error;                                                                                                                  \
+            free(copy);                                                                                                                     \
+            return kickedFiles;                                                                                                             \
+        }                                                                                                                                   \
+        kickedFiles[numKick-1] = (cache->LRU)[0];                                                                                           \
+        (cache->LRU)[0] = (cache->LRU)[--(cache->fileOnline)];                                                                              \
+        (cache->LRU)[(cache->fileOnline)] = NULL;                                                                                           \
+        (cache->bytesOnline) -= (kickedFiles[numKick-1])->size;                                                                             \
+        if(icl_hash_delete(cache->tabella, kickedFiles[numKick-1]->pathname, free, NULL) == -1) {                                           \
+            errno = error;                                                                                                                  \
+            free(copy);                                                                                                                     \
+            return kickedFiles;                                                                                                             \
+        }                                                                                                                                   \
+        kickedFiles[numKick] = NULL;                                                                                                        \
+    }
+
+
+/**
+ * @brief           Funzione destroyFile riadattata per la icl_hash_destroy
+ * @fun             free_file
+ * @param f         File da cancellare
+ */
+static void free_file(void *f) {
+    /** Variabili **/
+    myFile *file = (myFile *) f;
+
+    /** Cancellazione del file **/
+    destroyFile(&file);
+}
+
+
+/**
+ * @brief           Compara un file con il pathname che si vuole ricercare
+ * @fun             findFileOnLRU
+ * @return          Ritorna 0 se i valori del pathname corrispondono oppure la differenza tra il pathname passato e
+ *                  quello del file con cui si compara
+ */
+static int findFileOnLRU(const void *v1, const void *v2) {
+    char *p = (char *) v1;
+    myFile **f = (myFile **) v2;
+
+    return strncmp(p, (*f)->pathname, strnlen((*f)->pathname, MAX_PATHNAME));
+}
+
+
+/**
+ * @brief                   Funzione usata nella qsort per riordinare gli elementi nella LRU
+ * @fun                     orderLRUFiles
+ * @param v1                Primo valore
+ * @param v2                Secondo valore
+ * @return                  Ritorna la differenza tra il primo e secondo valore
+ */
+static int orderLRUFiles(const void *v1, const void *v2) {
+    myFile **f1 = NULL, **f2 = NULL;
+    time_t t1Sec = -1, t2Sec = -1, t1uSec = -1, t2uSec = -1;
+
+    if(v1 != NULL) {
+        (f1) = (myFile **) v1;
+        t1Sec = ((*f1)->time).tv_sec;
+        t1uSec = ((*f1)->time).tv_usec;
+    }
+    if(v2 != NULL) {
+        (f2) = (myFile **) v2;
+        t1Sec = ((*f2)->time).tv_sec;
+        t1uSec = ((*f2)->time).tv_usec;
+    }
+
+    if(v1 == NULL && v2 != NULL) {
+        return (int)(0 - t1Sec);
+    } else if(v1 != NULL && v2 == NULL) {
+
+    } if(v1 == NULL && v2 == NULL) return 0;
+
+
+    if((t1Sec - t2Sec) == 0)
+        return (int) (t1uSec-t2uSec);
+    else
+        return (int) (t1Sec - t2Sec);
+}
+
+
+/**
+ * @brief                       Funzione che aggiorna la coda LRU
+ * @fun                         LRU_Update
+ * @param LRU                   Coda LRU
+ * @param numElements           Numero di elementi presenti nella coda
+ */
+static void LRU_Update(myFile **LRU, unsigned int numElements) {
+    /** Controllo parametri **/
+    if(LRU == NULL) { return; }
+
+    /** Aggiornamento **/
+    qsort(LRU, numElements, sizeof(myFile **), orderLRUFiles);
+}
+
+
+/**
  * @brief                           Legge il contenuto del configFile del server e lo traduce in una struttura in memoria principale
  * @fun                             readConfigFile
  * @param configPathname            Pathname del config file
  * @return                          Ritorna la struttura delle impostazioni del server; in caso di errore ritorna NULL [setta errno]
  */
-LRU_Memory* readConfigFile(const char *configPathname) {
+Settings* readConfigFile(const char *configPathname) {
     /** Variabili **/
     char *buffer = NULL, *commento = NULL, *opt = NULL;
     int error = 0;
     long valueOpt = -1;
     FILE *file = NULL;
-    LRU_Memory *serverMemory = NULL;
+    Settings *serverMemory = NULL;
 
     /** Controllo parametri **/
     if(configPathname == NULL) { errno = EINVAL; return NULL; }
     if((file = fopen(configPathname, "r")) == NULL) { errno = ENOENT; return NULL; }
 
     /** Lettura del file **/
-    if((serverMemory = (LRU_Memory *) malloc(sizeof(LRU_Memory))) == NULL) { error = errno; fclose(file); errno = error; return NULL; }
+    if((serverMemory = (Settings *) malloc(sizeof(Settings))) == NULL) { error = errno; fclose(file); errno = error; return NULL; }
     if((buffer = (char *) calloc(MAX_BUFFER_LEN, sizeof(char))) == NULL) { error = errno; fclose(file); free(serverMemory); errno = error; return NULL; }
-    memset(serverMemory, 0, sizeof(LRU_Memory));
+    memset(serverMemory, 0, sizeof(Settings));
     while((memset(buffer, 0, MAX_BUFFER_LEN*sizeof(char)), fgets(buffer, MAX_BUFFER_LEN, file)) != NULL) {
 
         if(strnlen(buffer, MAX_BUFFER_LEN) == 2) continue;
@@ -49,10 +157,10 @@ LRU_Memory* readConfigFile(const char *configPathname) {
         else if(serverMemory->maxMB == 0) serverMemory->maxMB = DEFAULT_MAX_MB;
 
         // Imposto il canale di comunicazione socket
-        if((serverMemory->socket == NULL) && (serverMemory->socket = (char *) calloc(MAX_BUFFER_LEN, sizeof(char))) == NULL) { error = errno; free(buffer); fclose(file); free(serverMemory); errno = error; return NULL; }
+        if((serverMemory->socket == NULL) && ((serverMemory->socket = (char *) calloc(MAX_BUFFER_LEN, sizeof(char))) == NULL)) { error = errno; free(buffer); fclose(file); free(serverMemory); errno = error; return NULL; }
         if(((opt = strstr(buffer, "socket")) != NULL) && ((opt = strrchr(opt, '=')) != NULL) && (strstr(opt+1, ".sk") != NULL)) {
             strncpy(serverMemory->socket, opt+1, strnlen(opt+1, MAX_BUFFER_LEN)+1);
-            (serverMemory->socket)[strnlen(opt+1, MAX_BUFFER_LEN)+1] = '\0';
+            (serverMemory->socket)[strnlen(opt+1, MAX_BUFFER_LEN)] = '\0';
             continue;
         }
         else if(serverMemory->socket == NULL) strncpy(serverMemory->socket, DEFAULT_SOCKET, strnlen(DEFAULT_SOCKET, MAX_BUFFER_LEN)+1);
@@ -72,14 +180,427 @@ LRU_Memory* readConfigFile(const char *configPathname) {
     free(buffer);
     fclose(file);
 
-    /** 2° Step: Inizializzazione della struttura dati **/
-
-
     return serverMemory;
 }
 
 
-void deleteLRU(LRU_Memory **serverMemory) {
-    free((*serverMemory)->socket);
-    free(*serverMemory);
+/**
+ * @brief                           Inizializza la struttura del server con politica LRU
+ * @fun                             startLRUMemory
+ * @param set                       Impostazioni del server lette dal file config
+ * @param log                       Log per il tracciamento delle operazioni
+ * @return                          Ritorna la struttura della memoria in caso di successo; NULL altrimenti [setta errno]
+ */
+LRU_Memory* startLRUMemory(Settings *set, serverLogFile *log) {
+    /** Variabili **/
+    int error = 0, index = -1;
+    LRU_Memory *mem = NULL;
+
+    /** Controllo parametri **/
+    if((set->maxUtentiPerFile == 0) || (set->maxNumeroFileCaricabili == 0) || (set->maxMB == 0)) { errno = EINVAL; return NULL; }
+
+    /** Creo la struttura e la inizializzo **/
+    if((mem = (LRU_Memory *) malloc(sizeof(LRU_Memory))) == NULL) { return NULL; }
+    memset(mem, 0, sizeof(LRU_Memory));
+    mem->maxBytesOnline = set->maxMB * 1000000;
+    mem->maxFileOnline = set->maxNumeroFileCaricabili;
+    mem->maxUtentiPerFile = set->maxUtentiPerFile;
+    if(log != NULL) mem->log = log;
+    if((mem->tabella = icl_hash_create((int) ((set->maxNumeroFileCaricabili)*2), NULL, NULL)) == NULL) {
+        free(mem);
+        errno = EOPNOTSUPP;
+        return NULL;
+    }
+    if((mem->LRU = (myFile **) calloc(set->maxNumeroFileCaricabili, sizeof(myFile *))) == NULL) {
+        icl_hash_destroy(mem->tabella, free, free_file);
+        free(mem);
+        return NULL;
+    }
+    memset(mem->LRU, 0, (mem->maxFileOnline)*sizeof(myFile *));
+    if((mem->LRU_Access = (pthread_mutex_t *) malloc(sizeof(pthread_mutex_t))) == NULL) {
+        free(mem->LRU);
+        icl_hash_destroy(mem->tabella, free, free_file);
+        free(mem);
+        return NULL;
+    }
+    if((error = pthread_mutex_init(mem->LRU_Access, NULL)) != 0) {
+        free(mem->LRU_Access);
+        free(mem->LRU);
+        icl_hash_destroy(mem->tabella, free, free_file);
+        free(mem);
+        errno = error;
+        return NULL;
+    }
+    if((mem->Files_Access = (pthread_mutex_t *) calloc(2*(set->maxNumeroFileCaricabili), sizeof(pthread_mutex_t))) == NULL) {
+        pthread_mutex_destroy(mem->LRU_Access);
+        free(mem->LRU_Access);
+        free(mem->LRU);
+        icl_hash_destroy(mem->tabella, free, free_file);
+        free(mem);
+        return NULL;
+    }
+    while(++index < 2*(set->maxNumeroFileCaricabili)) {
+        if((error = pthread_mutex_init((mem->Files_Access)+index, NULL)) != 0) {
+            while (--index >= 0) {
+                pthread_mutex_destroy(mem->Files_Access);
+            }
+            free(mem->Files_Access);
+            pthread_mutex_destroy(mem->LRU_Access);
+            free(mem->LRU_Access);
+            free(mem->LRU);
+            icl_hash_destroy(mem->tabella, free, free_file);
+            free(mem);
+            errno = error;
+            return NULL;
+        }
+    }
+
+    return mem;
+}
+
+
+/**
+ * @brief                   Controlla se un file esiste o meno nel server (per uso esterno al file FileStorageServer.c)
+ * @fun                     fileExist
+ * @param cache             Memoria cache su cui andare a controllare
+ * @param pathname          Pathname del file da cercare
+ * @return                  (1) se il file esiste; (0) se non esiste; (-1) in caso di errore nella ricerca
+ */
+int fileExist(LRU_Memory *cache, const char *pathname) {
+    /** Variabili **/
+    int error = 0, result = -1;
+    char copyPathname[MAX_PATHNAME];
+
+    /** Controllo parametri **/
+    if(cache == NULL) { errno = EINVAL; return -1; }
+    if(pathname == NULL) { errno = EINVAL; return -1; }
+
+    /** Controllo esistenza file **/
+    strncpy(copyPathname, pathname, strnlen(pathname, MAX_BUFFER_LEN)+1);
+    if((error = pthread_mutex_lock(cache->LRU_Access)) != 0) { errno = error; return -1; }
+    result = (icl_hash_find(cache->tabella, copyPathname) != NULL);
+    if((error = pthread_mutex_unlock(cache->LRU_Access)) != 0) { errno = error; return -1; }
+
+    return result;
+}
+
+
+/**
+ * @brief                       Apre un file da parte di un fd sulla memoria cache
+ * @fun                         openFileOnCache
+ * @param cache                 Memoria cache
+ * @param pathname              Pathname del file da aprire
+ * @param openFD                FD che vuole aprire il file
+ * @return                      (1) se file e' gia stato aperto; (0) se e' stato aperto con successo;
+ *                              (-1) in caso di errore [setta errno]
+ */
+int openFileOnCache(LRU_Memory *cache, const char *pathname, int openFD) {
+    /** Variabili **/
+    int error = 0, result = -1;
+    myFile *toOpen = NULL;
+
+    /** Controllo parametri **/
+    if(cache == NULL) { errno = EINVAL; return -1; }
+    if(pathname == NULL) { errno = EINVAL; return -1; }
+    if(openFD <= 0) { errno = EINVAL; return -1; }
+
+    /** Tentativo di apertura del file **/
+    if((error = pthread_mutex_lock(cache->LRU_Access)) != 0) {
+        errno = error;
+        return -1;
+    }
+    if((toOpen = icl_hash_find(cache->tabella, (void *) pathname)) == NULL) {
+        pthread_mutex_unlock(cache->LRU_Access);
+        errno = ENOENT;
+        return -1;
+    }
+    if((error = pthread_mutex_lock(toOpen->lockAccessFile)) != 0) {
+        pthread_mutex_unlock(cache->LRU_Access);
+        errno = error;
+        return -1;
+    }
+    if((error = pthread_mutex_unlock(cache->LRU_Access)) != 0) {
+        pthread_mutex_unlock(toOpen->lockAccessFile);
+        errno = error;
+        return -1;
+    }
+    result = openFile(toOpen, openFD);
+    if(result == -1) {
+        pthread_mutex_unlock(toOpen->lockAccessFile);
+        return -1;
+    }
+    if((error = pthread_mutex_unlock(toOpen->lockAccessFile)) != 0) {
+        errno = error;
+        return -1;
+    }
+
+    return result;
+}
+
+
+/**
+ * @brief                   Aggiungo un file alla memoria cache
+ * @fun                     addFileOnCache
+ * @param cache             Memoria cache su cui aggiungere il file
+ * @param newFile           File da aggiungere
+ * @return                  In caso di errore ritorna NULL con errno settato; altrimenti ritorna NULL o
+ *                          una lista di file cacciati per Memory Miss
+ */
+myFile** addFileOnCache(LRU_Memory *cache, myFile** newFile) {
+    /** Variabili **/
+    int error = 0, numKick = 0;
+    char *copy = NULL;
+    unsigned int hashPathname = 0;
+    myFile **kickedFiles = NULL;
+
+    /** Controllo parametri **/
+    if(cache == NULL) { errno = EINVAL; return NULL; }
+    if(newFile == NULL) { errno = EINVAL; return NULL; }
+
+    /** Aggiungo il file **/
+    if((copy = (char *) calloc(strnlen((*newFile)->pathname, MAX_PATHNAME)+1, sizeof(char))) == NULL) {
+        return NULL;
+    }
+    strncpy(copy, (*newFile)->pathname, strnlen((*newFile)->pathname, MAX_PATHNAME)+1);
+    hashPathname = hash_pjw(copy), hashPathname %= 2*(cache->maxFileOnline);
+    if((error = pthread_mutex_lock(cache->LRU_Access)) != 0) { errno = error; free(copy); return NULL; }
+    MEMORY_MISS(1, 0)
+    updateTime(*newFile);
+    (*newFile)->lockAccessFile = (cache->Files_Access) + hashPathname;
+    if(icl_hash_insert(cache->tabella, copy, *newFile) == NULL) { pthread_mutex_unlock(cache->LRU_Access); free(copy); errno = EAGAIN; return kickedFiles; }
+    (cache->LRU)[(cache->fileOnline)++] = *newFile;
+    *newFile = NULL;
+    if((cache->massimoNumeroDiFileOnline) < (cache->fileOnline)) (cache->massimoNumeroDiFileOnline) = (cache->fileOnline);
+    if((error = pthread_mutex_unlock(cache->LRU_Access)) != 0) { errno = error; free(copy); return kickedFiles; }
+    LRU_Update(cache->LRU, cache->fileOnline);
+
+    return kickedFiles;
+}
+
+
+/**
+ * @brief                   Rimuove un file dalla memoria cache
+ * @fun                     removeFileOnCache
+ * @param cache             Memoria cache da cui estrarre il file
+ * @param pathname          Pathname del file da rimuovere
+ * @return                  Ritorna il file cancellato, altrimenti ritorna NULL (in caso di errore [setta errno])
+ */
+myFile* removeFileOnCache(LRU_Memory *cache, const char *pathname) {
+    /** Variabili **/
+    long index = -1;
+    int error = 0;
+    myFile **toDel = NULL, *del = NULL;
+
+    /** Controllo parametri **/
+    if(cache == NULL) { errno = EINVAL; return NULL; }
+    if(pathname == NULL) { errno = EINVAL; return NULL; }
+
+    /** Cerco il file e lo cancello **/
+    if((error = pthread_mutex_lock(cache->LRU_Access)) != 0) { errno = error; return NULL; }
+    if((toDel = (myFile **) bsearch(pathname, (cache->LRU), cache->fileOnline, sizeof(myFile **), findFileOnLRU)) == NULL) { pthread_mutex_unlock(cache->LRU_Access); return NULL; }
+    if((error = pthread_mutex_lock(toDel[0]->lockAccessFile)) != 0) { errno = error; pthread_mutex_unlock(cache->LRU_Access); return NULL; }
+    index = toDel - cache->LRU;
+    printf("%ld\n", index);
+    if(icl_hash_delete(cache->tabella, toDel[0]->pathname, free, NULL) == -1) {
+        errno = EAGAIN;
+        pthread_mutex_unlock(toDel[0]->lockAccessFile);
+        pthread_mutex_unlock(cache->LRU_Access);
+    }
+    del = *(toDel);
+    cache->bytesOnline -= del->size;
+    cache->LRU[index] = cache->LRU[--(cache->fileOnline)];
+    cache->LRU[(cache->fileOnline)] = NULL;
+    if((error = pthread_mutex_unlock(del->lockAccessFile)) != 0) { errno = error; pthread_mutex_unlock(cache->LRU_Access); return NULL; }
+    del->lockAccessFile = NULL;
+    LRU_Update((cache->LRU), cache->fileOnline);
+    if((error = pthread_mutex_unlock(cache->LRU_Access)) != 0) { errno = error; return NULL; }
+
+    return del;
+}
+
+
+/**
+ * @brief                       Aggiorna il contenuto di un file in modo atomico
+ * @fun                         appendFile
+ * @param cache                 Memoria cache
+ * @param pathname              Pathname del file da aggiornare
+ * @param buffer                Buffer da aggiungere
+ * @param size                  Dimensione del buffer da aggiungere
+ * @return                      Ritorna gli eventuali file espulsi; in caso di errore valutare se si setta errno
+ */
+myFile** appendFile(LRU_Memory *cache, const char *pathname, void *buffer, ssize_t size) {
+    /** Variabili **/
+    myFile **kickedFiles = NULL, *fileToEdit = NULL;
+    int error = 0, numKick = 0;
+    char *copy = NULL;
+
+    /** Controllo parametri **/
+    if(cache == NULL) { errno = EINVAL; return NULL; }
+    if(pathname == NULL) { errno = EINVAL; return NULL; }
+    if(buffer == NULL) { errno = EINVAL; return NULL; }
+
+    /** Aggiungo al file il contenuto **/
+    if((error = pthread_mutex_lock(cache->LRU_Access)) != 0) {
+        errno = error;
+        return NULL;
+    }
+    if((copy = (char *) calloc(strnlen(pathname, MAX_PATHNAME)+1, sizeof(char))) == NULL) {
+        pthread_mutex_unlock(cache->LRU_Access);
+        return NULL;
+    }
+    strncpy(copy, pathname, strnlen(pathname, MAX_PATHNAME)+1);
+    if((fileToEdit = icl_hash_find(cache->tabella, copy)) == NULL) {
+        pthread_mutex_unlock(cache->LRU_Access);
+        free(copy);
+        return NULL;
+    }
+    MEMORY_MISS(0, size)
+    if((error = pthread_mutex_lock(fileToEdit->lockAccessFile)) != 0) {
+        pthread_mutex_unlock(cache->LRU_Access);
+        free(copy);
+        errno = error;
+        return kickedFiles;
+    }
+    if(addContentToFile(fileToEdit, buffer, size) == -1) {
+        pthread_mutex_unlock(fileToEdit->lockAccessFile);
+        pthread_mutex_unlock(cache->LRU_Access);
+        return kickedFiles;
+    }
+    cache->bytesOnline += size;
+    if((cache->numeroMassimoBytesCaricato) < (cache->bytesOnline)) (cache->numeroMassimoBytesCaricato) = (cache->bytesOnline);
+    LRU_Update(cache->LRU, cache->fileOnline);
+
+    return kickedFiles;
+}
+
+
+/**
+ * @brief                   Effettua la lock su un file per quel fd
+ * @fun                     lockFileOnCache
+ * @param cache             Memoria cache
+ * @param pathname          Pathname del file da bloccare
+ * @param lockFD            Fd che effettua la lock
+ * @return                  Ritorna (1) se il file e' locked gia'; (0) se la lock e' riuscita;
+ *                          (-1) in caso di errore [setta errno]
+ */
+int lockFileOnCache(LRU_Memory *cache, const char *pathname, int lockFD) {
+    /** Variabili **/
+    int error = 0, lockResult = -1;
+    myFile *fileToLock = NULL;
+
+    /** Controllo parametri **/
+    if(cache == NULL) { errno = EINVAL; return -1; }
+    if(pathname == NULL) { errno = EINVAL; return -1; }
+    if(lockFD <= 0) { errno = EINVAL; return -1; }
+
+    /** Tento di effettuare la lock **/
+    if((error = pthread_mutex_lock(cache->LRU_Access)) != 0) {
+        errno = error;
+        return -1;
+    }
+    if((fileToLock = (myFile *) icl_hash_find(cache->tabella, (void *) pathname)) == NULL) {
+        pthread_mutex_unlock(cache->LRU_Access);
+        errno = ENOENT;
+        return -1;
+    }
+    if((error = pthread_mutex_lock(fileToLock->lockAccessFile)) != 0) {
+        pthread_mutex_unlock(cache->LRU_Access);
+        errno = error;
+        return -1;
+    }
+    if((error = pthread_mutex_unlock(cache->LRU_Access)) != 0) {
+        pthread_mutex_unlock(fileToLock->lockAccessFile);
+        errno = error;
+        return -1;
+    }
+    if((lockResult = lockFile(fileToLock, lockFD)) == -1) {
+        pthread_mutex_unlock(fileToLock->lockAccessFile);
+        return -1;
+    }
+    if((error = pthread_mutex_unlock(fileToLock->lockAccessFile)) != 0) {
+        errno = error;
+        return -1;
+    }
+
+    return lockResult;
+}
+
+
+/**
+ * @brief                   Effettua la unlock su un file per quel fd
+ * @fun                     unlockFileOnCache
+ * @param cache             Memoria cache
+ * @param pathname          Pathname del file da sbloccare
+ * @param unlockFD          Fd che effettua la unlock
+ * @return                  (0) se la unlock e' riuscita;
+ *                          (-1) in caso di errore [setta errno]
+ */
+int unlockFileOnCache(LRU_Memory *cache, const char *pathname, int unlockFD) {
+    /** Variabili **/
+    int error = 0, unlockResult = -1;
+    myFile *fileToUnlock = NULL;
+
+    /** Controllo parametri **/
+    if(cache == NULL) { errno = EINVAL; return -1; }
+    if(pathname == NULL) { errno = EINVAL; return -1; }
+    if(unlockFD <= 0) { errno = EINVAL; return -1; }
+
+    /** Tento di effettuare la unlock **/
+    if((error = pthread_mutex_lock(cache->LRU_Access)) != 0) {
+        errno = error;
+        return -1;
+    }
+    if((fileToUnlock = (myFile *) icl_hash_find(cache->tabella, (void *) pathname)) == NULL) {
+        pthread_mutex_unlock(cache->LRU_Access);
+        errno = ENOENT;
+        return -1;
+    }
+    if((error = pthread_mutex_lock(fileToUnlock->lockAccessFile)) != 0) {
+        pthread_mutex_unlock(cache->LRU_Access);
+        errno = error;
+        return -1;
+    }
+    if((error = pthread_mutex_unlock(cache->LRU_Access)) != 0) {
+        pthread_mutex_unlock(fileToUnlock->lockAccessFile);
+        errno = error;
+        return -1;
+    }
+    if((unlockResult = unlockFile(fileToUnlock, unlockFD)) == -1) {
+        pthread_mutex_unlock(fileToUnlock->lockAccessFile);
+        return -1;
+    }
+    if((error = pthread_mutex_unlock(fileToUnlock->lockAccessFile)) != 0) {
+        errno = error;
+        return -1;
+    }
+
+    return unlockResult;
+}
+
+
+/**
+ * @brief                   Cancella tutta la memoria e i settings della memoria cache
+ * @fun                     deleteLRU
+ * @param serverMemory      Settings del server letti dal config file
+ * @param mem               Memoria cache
+ */
+void deleteLRU(Settings **serverMemory, LRU_Memory **mem) {
+    /** Dealloco le impostazioni **/
+    if(*serverMemory != NULL) {
+        free((*serverMemory)->socket);
+        free(*serverMemory);
+        serverMemory = NULL;
+    }
+
+    /** Dealloco la memoria LRU **/
+    if(*mem != NULL) {
+        pthread_mutex_destroy((*mem)->Files_Access);
+        free((*mem)->Files_Access);
+        icl_hash_destroy((*mem)->tabella, free, free_file);
+        pthread_mutex_destroy((*mem)->LRU_Access);
+        free((*mem)->LRU_Access);
+        free((*mem)->LRU);
+        free(*mem);
+        *mem = NULL;
+    }
 }

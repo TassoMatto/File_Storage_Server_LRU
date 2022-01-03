@@ -13,8 +13,12 @@
     #include <stdio.h>
     #include <string.h>
     #include <errno.h>
+    #include <pthread.h>
     #include <icl_hash.h>
+    #include <file.h>
+    #include <logFile.h>
     #include <utils.h>
+    #include <queue.h>
 
 
     #define DEFAULT_NUMERO_THREAD_WORKER 10
@@ -26,31 +30,66 @@
 
     /**
      * @brief                           Struttura che contiene le informazioni di base del server lette nel config file
-     * @struct                          LRU_Memory
+     * @struct                          Settings
      * @param socket                    Socket usato per la comunicazione client-server
      * @param maxMB                     Numero massimo di MB che posso caricare
+     * @param numeroThreadWorker        Numero di thread da avviare nel pool
+     * @param maxNumeroFileCaricaribili Numero massimo di file da caricare nel server
+     * @param maxUtentuConnessi         Numero massimo di utenti che posso far connettere al server
+     * @param maxUtentiPerFile          Numero massimo di utenti che puo' aprire il file contemporaneamente
      */
     typedef struct {
         /** Capacita' del server **/
         char *socket;
-        size_t maxMB;
+        ssize_t maxMB;
         unsigned int numeroThreadWorker;
         unsigned int maxNumeroFileCaricabili;
         unsigned int maxUtentiConnessi;
         unsigned int maxUtentiPerFile;
+    } Settings;
 
-        /** Data Center **/
-        icl_hash_t *tabellaDeiFile;
-        int *LRU;
-        // Array che gestisce la politica LRU
-        // Coda che gestisce i file che dovranno essere aggiunti
 
-        /** Valori attuali del server **/
-        size_t onlineBytes;
-        unsigned int onlineFile;
-        unsigned int utentiOnline;
+    /**
+     * @brief                               Struttura dati per rappresentare la cache con politica LRU
+     * @struct                              LRU_Memory
+     * @param tabella                       Tabella Hash dove inserisco i file memorizzati nella cache
+     * @param LRU                           Array di "myFile" che tiene ordinato in modo temporale
+     *                                      crescente i file della tabella
+     * @param log                           File di log per il tracciamento delle operazioni della cache
+     * @param LRU_Access                    Mutex per l'accesso concorrente nella tabella
+     * @param Files_Access                  Mutex che vengono assegnate ai file per l'accesso agli stessi in modo concorrente
+     * @param maxBytesOnline                Numero massimo di bytes che posso memorizzare nella cache
+     * @param maxFileOnline                 Numero massimo di file che posso caricare in memoria cache
+     * @param maxUtentiPerFile              Numero massimo di utenti che posso aprire un singolo file contemporaneamente
+     * @param bytesOnline                   Numero di bytes caricati in quel'istante
+     * @param fileOnline                    Numero di file caricati in quel momento
+     * @param massimoNumeroDiFileOnline     Numero massimo di file che sono stati caricati
+     * @param numeroMassimoBytesCaricato    Numero massimo di byte che sono stati caricati
+     * @param numeroMemoryMiss              Numero di espulsioni che la cache ha fatto
+     * @param numTotLogin                   Numero di login effettuati nel server
+     */
+    typedef struct {
+        /** Strutture dati **/
+        icl_hash_t *tabella;
+        myFile **LRU;
+        serverLogFile *log;
+        pthread_mutex_t *LRU_Access;
+        pthread_mutex_t *Files_Access;
 
-        /** Valori statistici del server **/
+        /** Informazioni capacitive **/
+        ssize_t maxBytesOnline;
+        unsigned int maxFileOnline;
+        unsigned int maxUtentiPerFile;
+
+        /** Valori attuali **/
+        ssize_t bytesOnline;
+        unsigned int fileOnline;
+
+        /** Informazioni statistiche **/
+        unsigned int massimoNumeroDiFileOnline;
+        ssize_t numeroMassimoBytesCaricato;
+        unsigned int numeroMemoryMiss;
+        unsigned int numTotLogin;
     } LRU_Memory;
 
 
@@ -59,10 +98,84 @@
      * @fun                             readConfigFile
      * @return                          Ritorna la struttura delle impostazioni del server; in caso di errore ritorna NULL [setta errno]
      */
-    LRU_Memory* readConfigFile(const char *);
+    Settings* readConfigFile(const char *);
 
 
-    void deleteLRU(LRU_Memory **);
+    /**
+     * @brief                           Inizializza la struttura del server con politica LRU
+     * @fun                             startLRUMemory
+     * @return                          Ritorna la struttura della memoria in caso di successo; NULL altrimenti [setta errno]
+     */
+    LRU_Memory* startLRUMemory(Settings *, serverLogFile *);
+
+
+    /**
+     * @brief                   Controlla se un file esiste o meno nel server (per uso esterno al file FileStorageServer.c)
+     * @fun                     fileExist
+     * @return                  (1) se il file esiste; (0) se non esiste; (-1) in caso di errore nella ricerca
+     */
+    int fileExist(LRU_Memory *, const char *);
+
+
+    /**
+     * @brief                       Apre un file da parte di un fd sulla memoria cache
+     * @fun                         openFileOnCache
+     * @return                      (1) se file e' gia stato aperto; (0) se e' stato aperto con successo;
+     *                              (-1) in caso di errore [setta errno]
+     */
+    int openFileOnCache(LRU_Memory *cache, const char *pathname, int openFD);
+
+
+    /**
+     * @brief                   Aggiungo un file alla memoria cache
+     * @fun                     addFileOnCache
+     * @return                  In caso di errore ritorna NULL con errno settato; altrimenti ritorna NULL o
+     *                          una lista di file cacciati per Memory Miss
+     */
+    myFile** addFileOnCache(LRU_Memory *, myFile **);
+
+
+    /**
+     * @brief                   Rimuove un file dalla memoria cache
+     * @fun                     removeFileOnCache
+     * @return                  Ritorna il file cancellato; in caso di errore ritorna NULL [setta errno]
+     */
+    myFile* removeFileOnCache(LRU_Memory *, const char *);
+
+
+    /**
+    * @brief                       Aggiorna il contenuto di un file in modo atomico
+    * @fun                         appendFile
+    * @return                      Ritorna gli eventuali file espulsi; in caso di errore valutare se si setta errno
+    */
+    myFile** appendFile(LRU_Memory *, const char *, void *, ssize_t);
+
+
+    /**
+     * @brief                   Effettua la lock su un file per quel fd
+     * @fun                     lockFileOnCache
+     * @return                  Ritorna (1) se il file e' locked gia'; (0) se la lock e' riuscita;
+     *                          (-1) in caso di errore [setta errno]
+     */
+    int lockFileOnCache(LRU_Memory *, const char *, int);
+
+
+    /**
+     * @brief                   Effettua la unlock su un file per quel fd
+     * @fun                     unlockFileOnCache
+     * @return                  (0) se la unlock e' riuscita;
+     *                          (-1) in caso di errore [setta errno]
+     */
+    int unlockFileOnCache(LRU_Memory *, const char *, int);
+
+
+    /**
+     * @brief                   Cancella tutta la memoria e i settings della memoria cache
+     * @fun                     deleteLRU
+     * @param serverMemory      Settings del server letti dal config file
+     * @param mem               Memoria cache
+     */
+    void deleteLRU(Settings **, LRU_Memory **);
 
 
 #endif //FILE_STORAGE_SERVER_LRU_FILESTORAGESERVER_H

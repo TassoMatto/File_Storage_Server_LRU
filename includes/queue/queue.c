@@ -41,6 +41,30 @@ Queue* insertIntoQueue(Queue *q, void *data, size_t size) {
 
 
 /**
+ * @brief               Cerca un elemento nella coda
+ * @fun                 searchElement
+ * @param q             Coda su cui cercare l'elemento
+ * @param data          Elemento da comparare per cercare l'elemento
+ * @param fun           Funzione per comparare gli elementi
+ * @return              (1) se l'elemento e' stato trovato, (0) se non ho trovato niente; (-1) [setta errno]
+ */
+int searchElement(Queue *q, void *data, Compare_Fun fun) {
+    /** Controllo parametri **/
+    if(q == NULL) { errno = EINVAL; return -1; }
+    if(data == NULL) { errno = EINVAL; return -1; }
+    if(fun == NULL) { errno = EINVAL; return -1; }
+
+    /** Inizio la ricerca dell'elemento **/
+    while(q != NULL) {
+        if(fun(data, q->data)) return 1;
+        q = q->next;
+    }
+
+    return 0;
+}
+
+
+/**
  * @brief               Funzione che elimina un determinato elemento dalla funzione
  * @fun                 deleteElementFromQueue
  * @param q             Coda
@@ -104,13 +128,13 @@ void* deleteFirstElement(Queue **q) {
  * @fun                 destroyQueue
  * @param q             Coda da cancellare
  */
-void destroyQueue(Queue **q) {
+void destroyQueue(Queue **q, Free_Data destroy) {
     /** Controllo parametri **/
     if(*q == NULL) return;
 
     /** Cancello la coda in modo bottom-up **/
-    destroyQueue(&((*q)->next));
-    free((*q)->data);
+    destroyQueue(&((*q)->next), destroy);
+    destroy((*q)->data);
     free(*q);
     *q = NULL;
 }

@@ -1,8 +1,31 @@
-[Fri Dec 24 14:56:57 2021]: 				[FILE STORAGE SERVER]
-[Fri Dec 24 14:56:57 2021]: Avvio del server in corso...
-[Fri Dec 24 14:56:57 2021]: Applicazione della maschera hai segnali SIGINT - SIGQUIT - SIGHUP per gestione personalizzata
-[Fri Dec 24 14:56:57 2021]: Lettura delle impostazioni del server da config.txt
-[Fri Dec 24 14:56:57 2021]: Apertura pipe comunicazione Thread Manager - Thread Worker per riabilitazione del client in lettura sulla socket
-[Fri Dec 24 14:56:57 2021]: Apertura della socket socket.sk
+[Mon Jan  3 15:02:10 2022]: 				[FILE STORAGE SERVER]
+[Mon Jan  3 15:02:10 2022]: Avvio del server in corso...
+[Mon Jan  3 15:02:10 2022]: Applicazione della maschera hai segnali SIGINT - SIGQUIT - SIGHUP per gestione personalizzata
+[Mon Jan  3 15:02:10 2022]: Lettura delle impostazioni del server da config.txt
+[Mon Jan  3 15:02:10 2022]: Apertura pipe comunicazione Thread Manager - Thread Worker per riabilitazione del client in lettura sulla socket
+[Mon Jan  3 15:02:10 2022]: Apertura della socket socket.sk
 
-[Fri Dec 24 14:57:02 2021]: Server in fase di spegnimento...
+[Mon Jan  3 15:02:10 2022]: Avvio del pool di 3 thread
+[Mon Jan  3 15:02:10 2022]: Thread n°1 avviato
+[Mon Jan  3 15:02:10 2022]: Thread n°1 in attesa di un task da eseguire
+[Mon Jan  3 15:02:10 2022]: Thread n°3 avviato
+[Mon Jan  3 15:02:10 2022]: Thread n°3 in attesa di un task da eseguire
+[Mon Jan  3 15:02:10 2022]: Thread n°2 avviato
+[Mon Jan  3 15:02:10 2022]: Thread n°2 in attesa di un task da eseguire
+[Mon Jan  3 15:02:10 2022]: Pool di thread avviato
+[Mon Jan  3 15:02:11 2022]: Server in fase di spegnimento...
+[Mon Jan  3 15:02:11 2022]: Thread n°2: tentativo di prendere un task
+[Mon Jan  3 15:02:11 2022]: Thread n°2 risvegliato
+[Mon Jan  3 15:02:11 2022]: Thread n°2: esecuzione nuovo Task
+[Mon Jan  3 15:02:11 2022]: Thread n°2: avvio task in corso
+[Mon Jan  3 15:02:11 2022]: Thread n°1: tentativo di prendere un task
+[Mon Jan  3 15:02:11 2022]: Thread n°1 risvegliato
+[Mon Jan  3 15:02:11 2022]: Thread n°1: esecuzione nuovo Task
+[Mon Jan  3 15:02:11 2022]: Thread n°1: avvio task in corso
+[Mon Jan  3 15:02:11 2022]: Thread n°2: arresto in corso
+[Mon Jan  3 15:02:11 2022]: Thread n°3: tentativo di prendere un task
+[Mon Jan  3 15:02:11 2022]: Thread n°3 risvegliato
+[Mon Jan  3 15:02:11 2022]: Thread n°3: esecuzione nuovo Task
+[Mon Jan  3 15:02:11 2022]: Thread n°3: avvio task in corso
+[Mon Jan  3 15:02:11 2022]: Thread n°1: arresto in corso
+[Mon Jan  3 15:02:11 2022]: Thread n°3: arresto in corso

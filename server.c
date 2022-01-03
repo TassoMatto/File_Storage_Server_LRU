@@ -5,9 +5,8 @@
  * @date                22/12/2021
  */
 
-
+// valgrind --leak-check=full --show-leak-kinds=all --track-origins=yes  --track-fds=yes  ./server config.txt
 /** Header Files **/
-#include <queue.h>
 #include <stdlib.h>
 #include <stdio.h>
 #include <string.h>
@@ -26,7 +25,9 @@
 #include <errno.h>
 #include <fcntl.h>
 #include <logFile.h>
+#include <queue.h>
 #include <FileStorageServer.h>
+#include <threadPool.h>
 
 
 #define _POSIX_C_SOURCE 200809L
@@ -40,9 +41,10 @@
 #define FREE_SERVER()                                               \
     do {                                                            \
         error = errno;                                              \
+        if(pool != NULL) { stopThreadPool(pool, 0); }               \
         if(fd_sk != -1) { close(fd_sk); }                           \
-        unlink(serverMemory->socket);                               \
-        if(serverMemory != NULL) { deleteLRU(&serverMemory); }      \
+        unlink(setServer->socket);                                  \
+        if(setServer != NULL) { deleteLRU(&setServer, &cacheLRU); } \
         if(log != NULL) { stopServerTracing(&log); }                \
         if(pfd[0] != -1) { close(pfd[0]); }                         \
         if(pfd[1] != -1) { close(pfd[1]); }                         \
@@ -79,10 +81,9 @@ int main(int argc, char **argv) {
     fd_set setInit/*, setRead*/;
     struct sockaddr_un sock_addr;
     serverLogFile *log = NULL;
-    LRU_Memory *serverMemory = NULL;
-
-    /** Pulizia dello schermo **/
-    system("clear");
+    threadPool *pool = NULL;
+    Settings *setServer = NULL;
+    LRU_Memory *cacheLRU = NULL;
 
     /** Controllo parametri **/
     if(argc != 2) {
@@ -139,7 +140,7 @@ int main(int argc, char **argv) {
     }
 
     /** Traduzione della configurazione del server dal file di config **/
-    if((serverMemory = readConfigFile(argv[1])) == NULL) {
+    if((setServer = readConfigFile(argv[1])) == NULL) {
         FREE_SERVER()
         exit(errno);
     }
@@ -165,7 +166,7 @@ int main(int argc, char **argv) {
         exit(errno);
     }
     sock_addr.sun_family = AF_UNIX;
-    strncpy(sock_addr.sun_path, serverMemory->socket, strnlen(serverMemory->socket, MAX_PATHNAME)+1);
+    strncpy(sock_addr.sun_path, setServer->socket, strnlen(setServer->socket, MAX_PATHNAME)+1);
     if(bind(fd_sk, (struct sockaddr *) &sock_addr, sizeof(sock_addr)) == -1) {
         FREE_SERVER()
         exit(errno);
@@ -174,7 +175,7 @@ int main(int argc, char **argv) {
         FREE_SERVER()
         exit(errno);
     }
-    if(traceOnLog(log, "Apertura della socket %s\n", serverMemory->socket) == -1) {
+    if(traceOnLog(log, "Apertura della socket %s\n", setServer->socket) == -1) {
         FREE_SERVER()
         exit(errno);
     }
@@ -184,6 +185,33 @@ int main(int argc, char **argv) {
     FD_ZERO(&setInit);
     FD_SET(fd_sk, &setInit);            //Abilito il listen socket
     FD_SET(pfd[0], &setInit);           //Abilito la pipe in lettura sulla select
+    update(0, &setInit); //DA TOGLIERE
+
+    /** Avvio del thread pool **/
+    if((pool = startThreadPool(setServer->numeroThreadWorker, log)) == NULL) {
+        FREE_SERVER()
+        exit(errno);
+    }
+
+    cacheLRU = startLRUMemory(setServer, log);
+    myFile *f = createFile("ciao", 7, NULL);
+    addFileOnCache(cacheLRU, &f);
+    printf("%d\n", openFileOnCache(cacheLRU, "ciao", 29));
+
+    f = createFile("ciaol", 7, NULL);
+    addFileOnCache(cacheLRU, &f);
+    printf("%d\n", openFileOnCache(cacheLRU, "ciaol", 29));
+    printf("%d\n", openFileOnCache(cacheLRU, "cial", 29));
+
+    printf("%d\n\n", lockFileOnCache(cacheLRU, "ciaol", 12));
+    perror("Ops: ");
+    printf("%d\n\n", lockFileOnCache(cacheLRU, "ciao", 29));
+    printf("%d\n\n", unlockFileOnCache(cacheLRU, "ciao", 29));
+    f = removeFileOnCache(cacheLRU, "ciao");
+    destroyFile(&f);
+    f = (removeFileOnCache(cacheLRU, "ciaol"));
+    destroyFile(&f);
+
 
     /** Arresto del server **/
     if(traceOnLog(log, "Server in fase di spegnimento...\n", argv[1]) == -1) {
