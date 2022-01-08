@@ -4,11 +4,13 @@
 
 CC	=  gcc
 
-CFLAGS	+= -Wall -Werror -g -DDEBUG
+CFLAGS	+= -std=c99 -Wall -Werror -g
 
 DBGFLAGS = -g
 
 LPTHREADS = -lpthread
+
+MATH_H = -lm
 
 INCLUDES = -I ./includes/
 
@@ -20,10 +22,13 @@ CL = ./client
 
 .PHONY		:	all clean cleanall dbg test1 test2 test3
 
-./server	: ./includes/logFile/logFile.o ./includes/FileStorageServer/FileStorageServer.o ./includes/utils/utils.o ./includes/queue/queue.o ./includes/threadPool/threadPool.o ./includes/File/file.o ./includes/hashTable/icl_hash.o ./includes/FileStorageServer/FileStorageServer.o ./server.o
-	$(CC) -o $@ $^ $(LPTHREADS)
+./server	: 	./includes/logFile/logFile.o ./includes/FileStorageServer/FileStorageServer.o ./includes/utils/utils.o ./includes/queue/queue.o ./includes/threadPool/threadPool.o ./includes/File/file.o ./includes/hashTable/icl_hash.o ./includes/FileStorageServer/FileStorageServer.o ./includes/API/Server_API.o ./server.o
+	$(CC) -o $@ $^ $(LPTHREADS) $(MATH_H)
+
+./client	:	./includes/API/Client_API.o ./clientTest.o ./includes/utils/utils.o
+	$(CC) -o $@ $^ $(LPTHREADS) $(MATH_H)
 
 ./%.o :	./%.c
-	$(CC) $(CFLAGS) $(INCLUDES) -O2 $^ -c -o $@
+	$(CC) $(CFLAGS) $(INCLUDES) -O3 $^ -c -o $@
 
-all	:	$(SS)
+all	:	$(SS)	$(CL)

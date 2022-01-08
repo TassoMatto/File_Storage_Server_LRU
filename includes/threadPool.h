@@ -21,6 +21,7 @@
      * @brief                           Struttura che gestisce il pool di thread
      * @struct                          threadPool
      * @param shutdown                  Variabile che indica al pool il momento di arrestarsi
+     * @param hardST                    Se si vuole spegnere il server immediatamente
      * @param numeroThread              Numero dei thread fissi del pool di thread
      * @param numeroDiThreadAttivi      Numero di thread attivi in quel istante
      * @param numeroThreadAiutanti      Numero di thread in supporto al pool
@@ -30,9 +31,11 @@
      * @param taskQueueMutex            Variabile Mutex per l'accesso concorrente alla coda dei task
      * @param emptyCondVar              Variabile condizione per segnalare se la coda dei task e' vuota o no
      * @param isEmpty                   Variabile per gestire il controllo di riempimento della coda
+     * @param log                       File di log in caso tracciamento
      */
     typedef struct {
         int shutdown;
+        int hardST;
 
         unsigned int numeroThread;
         unsigned int numeroDiThreadAttivi;
@@ -40,10 +43,13 @@
 
         pthread_t *threads;
         Queue *taskQueue;
+        void (*free_task)(void *);
         int numeroTaskInCoda;
         pthread_mutex_t *taskQueueMutex;
         pthread_cond_t *emptyCondVar;
         int isEmpty;
+
+        serverLogFile *log;
     } threadPool;
 
 
@@ -69,7 +75,7 @@
      * @fun                     startThreadPool
      * @return                  Ritorna la struttura che rappresenta il pool; in caso di errore ritorna NULL [setta errno]
      */
-    threadPool* startThreadPool(unsigned int, serverLogFile *);
+    threadPool* startThreadPool(unsigned int, void (*free_task)(void *), serverLogFile *);
 
 
     /**

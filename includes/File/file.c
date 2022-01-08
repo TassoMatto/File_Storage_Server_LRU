@@ -109,7 +109,7 @@ size_t addContentToFile(myFile *file, void *toAdd, ssize_t sizeToAdd) {
  * @param fd                FD su cui andare a verificare l'apertura
  * @return                  (1) se Fd ha aperto il file; (0) altrimenti [setta errno]
  */
-static int fileIsOpenedFrom(myFile *file, int fd) {
+int fileIsOpenedFrom(myFile *file, int fd) {
     /** Variabili **/
     int index = -1;
 
@@ -132,7 +132,7 @@ static int fileIsOpenedFrom(myFile *file, int fd) {
  * @param fd            FD per effettuare il controllo
  * @return              (1) se Fd ha la lock sul file; (0) se non ha la lock; (-1) se ci sono errori [setta errno]
  */
-static int fileIsLockedFrom(myFile *file, int fd) {
+int fileIsLockedFrom(myFile *file, int fd) {
     /** Variabili **/
     int index = -1;
     int *fdSearch = NULL;

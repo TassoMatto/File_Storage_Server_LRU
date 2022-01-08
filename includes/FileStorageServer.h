@@ -9,6 +9,7 @@
 
     #define FILE_STORAGE_SERVER_LRU_FILESTORAGESERVER_H
 
+    #define _POSIX_C_SOURCE 2001112L
     #include <stdlib.h>
     #include <stdio.h>
     #include <string.h>
@@ -47,6 +48,19 @@
         unsigned int maxUtentiConnessi;
         unsigned int maxUtentiPerFile;
     } Settings;
+
+
+    typedef struct {
+        icl_hash_t *pI;
+        pthread_mutex_t *lockPI;
+        serverLogFile *log;
+    } Pre_Inserimento;
+
+
+    typedef struct {
+        int fd_cl;
+        myFile *f;
+    } ClientFile;
 
 
     /**
@@ -127,12 +141,29 @@
 
 
     /**
-     * @brief                   Aggiungo un file alla memoria cache
-     * @fun                     addFileOnCache
-     * @return                  In caso di errore ritorna NULL con errno settato; altrimenti ritorna NULL o
-     *                          una lista di file cacciati per Memory Miss
+     * @brief                   Creo la tabella che conterranno i file vuoti
+     *                          non ancora scritti e salvati nella cache
+     * @fun                     createPreInserimento
+     * @return                  Ritorna la struttura di Pre-Inserimento; in caso di errore [setta errno]
      */
-    myFile** addFileOnCache(LRU_Memory *, myFile **);
+    Pre_Inserimento* createPreInserimento(int, serverLogFile *);
+
+
+    /**
+     * @brief                    Crea il file che successivamente verra' aggiunto alla memoria cache
+     * @fun                     createFileToInsert
+     * @return                  (0) in caso di successo; (-1) [setta errno] altrimenti
+     */
+    int createFileToInsert(Pre_Inserimento *, const char *, unsigned int, int, int);
+
+
+    /**
+     * @brief               Funzione che aggiunge il file creato da fd nella memoria cache (gia' creato e aggiunto in Pre-Inserimento)
+     * @fun                 addFileOnCache
+     * @return              Ritorna i file espulsi in seguito a memory miss oppure NULL; in caso di errore nell'aggiunta del file
+     *                      viene settato errno
+     */
+    myFile** addFileOnCache(LRU_Memory *, Pre_Inserimento *, const char *, int);
 
 
     /**
@@ -149,6 +180,14 @@
     * @return                      Ritorna gli eventuali file espulsi; in caso di errore valutare se si setta errno
     */
     myFile** appendFile(LRU_Memory *, const char *, void *, ssize_t);
+
+
+    /**
+     * @brief                   Funzione che legge il contenuto del file e ne restituisce una copia
+     * @fun                     readFileOnCache
+     * @return                  Ritorna la dimensione del buffer; (-1) altrimenti [setta errno]
+     */
+    size_t readFileOnCache(LRU_Memory *, const char *, void **);
 
 
     /**
@@ -172,10 +211,8 @@
     /**
      * @brief                   Cancella tutta la memoria e i settings della memoria cache
      * @fun                     deleteLRU
-     * @param serverMemory      Settings del server letti dal config file
-     * @param mem               Memoria cache
      */
-    void deleteLRU(Settings **, LRU_Memory **);
+    void deleteLRU(Settings **, LRU_Memory **, Pre_Inserimento **);
 
 
 #endif //FILE_STORAGE_SERVER_LRU_FILESTORAGESERVER_H

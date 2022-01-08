@@ -27,21 +27,21 @@ typedef struct {
  * @brief               Dealloca l'intero pool di thread
  * @macro               FREE_POOL_THREAD
  */
-#define FREE_POOL_THREAD()                                                          \
-    do {                                                                            \
-        error = errno;                                                              \
-        if((pool->taskQueueMutex) != NULL) {                                        \
-            pthread_mutex_destroy(pool->taskQueueMutex);                            \
-            free(pool->taskQueueMutex);                                             \
-        }                                                                           \
-        if(pool->emptyCondVar != NULL) {                                            \
-            pthread_cond_destroy(pool->emptyCondVar);                               \
-            free(pool->emptyCondVar);                                               \
-        }                                                                           \
-        if(pool->threads != NULL) { free(pool->threads); }                          \
-        if(pool->taskQueue != NULL) { destroyQueue(&(pool->taskQueue)); }           \
-        if(pool != NULL) { free(pool); }                                            \
-        errno = error;                                                              \
+#define FREE_POOL_THREAD()                                                                  \
+    do {                                                                                    \
+        error = errno;                                                                      \
+        if((pool->taskQueueMutex) != NULL) {                                                \
+            pthread_mutex_destroy(pool->taskQueueMutex);                                    \
+            free(pool->taskQueueMutex);                                                     \
+        }                                                                                   \
+        if(pool->emptyCondVar != NULL) {                                                    \
+            pthread_cond_destroy(pool->emptyCondVar);                                       \
+            free(pool->emptyCondVar);                                                       \
+        }                                                                                   \
+        if(pool->threads != NULL) { free(pool->threads); }                                  \
+        if(pool->taskQueue != NULL) { destroyQueue(&(pool->taskQueue), pool->free_task); }  \
+        if(pool != NULL) { free(pool); }                                                    \
+        errno = error;                                                                      \
     } while(0);
 
 
@@ -114,7 +114,6 @@ static void* start_routine(void *argv) {
     }
     LOCK_POOL(NULL)
     do {
-
         /** Se la lista e' vuota mi metto in attesa */
         while(pool->isEmpty) {
             (pool->numeroDiThreadAttivi)--;
@@ -144,6 +143,7 @@ static void* start_routine(void *argv) {
             break;
         }
         (pool->numeroTaskInCoda)--;
+        if(pool->taskQueue == NULL) pool->isEmpty = 1;
         UNLOCK_POOL(NULL)
         if(traceOnLog(log, "Thread n°%d: esecuzione nuovo Task\n", numeroDelThread) == -1) {
             *status = errno;
@@ -157,11 +157,11 @@ static void* start_routine(void *argv) {
         }
         if(work(numeroDelThread, t->argv) != NULL) {
             *status = errno;
-            return status;
+            //return status;
         }
-        free(uncastedTask);
+        pool->free_task(uncastedTask);
         LOCK_POOL(NULL)
-    } while(!(pool->shutdown));
+    } while((!(pool->shutdown)) || ((pool->taskQueue != NULL) && (!pool->hardST)));
     UNLOCK_POOL(NULL)
 
 
@@ -247,14 +247,18 @@ static void* start_routine(void *argv) {
  * @brief                   Crea un pool di thread
  * @fun                     startThreadPool
  * @param numeroThread      Numero di thread da creare nel pool
+ * @param free_task         Funzione per pulire i task una volta eseguiti
  * @param log               File di log
  * @return                  Ritorna la struttura che rappresenta il pool; in caso di errore ritorna NULL [setta errno]
  */
-threadPool* startThreadPool(unsigned int numeroThread, serverLogFile *log) {
+threadPool* startThreadPool(unsigned int numeroThread, void (*free_task)(void *), serverLogFile *log) {
     /** Variabili **/
     int error;
     Threads_Arg **arg = NULL;
     threadPool *pool = NULL;
+
+    /** Controllo parametri **/
+    if(free_task == NULL) { errno = EINVAL; return NULL; }
 
     /** Alloco la struttura **/
     if(traceOnLog(log, "Avvio del pool di %d thread\n", numeroThread) == -1) {
@@ -263,6 +267,8 @@ threadPool* startThreadPool(unsigned int numeroThread, serverLogFile *log) {
     }
     if((pool = (threadPool *) malloc(sizeof(threadPool))) == NULL) return NULL;
     memset(pool, 0, sizeof(threadPool));
+    pool->log = log;
+    pool->free_task = free_task;
     if((pool->taskQueueMutex = (pthread_mutex_t *) malloc(sizeof(pthread_mutex_t))) == NULL) {
         FREE_POOL_THREAD()
         return NULL;
@@ -363,18 +369,21 @@ int pushTask(threadPool *pool, Task *task) {
 int stopThreadPool(threadPool *pool, int hardShutdown) {
     /** Variabili **/
     Task *endTask = NULL;
-    int index = -1;
+    int index = -1, *status = NULL;
     int error = 0;
 
     /** Controllo parametri **/
     if((hardShutdown < 0) || (hardShutdown > 1)) { errno = EINVAL; return -1; }
 
     /** Avvio fase di spegnimento **/
-    printf("Stop pool\n");
     LOCK_POOL(-1)
     if(hardShutdown) {
-        destroyQueue(&(pool->taskQueue));
+        pool->hardST = 1;
+        destroyQueue(&(pool->taskQueue), pool->free_task);
         pool->taskQueue = NULL;
+        if(traceOnLog(pool->log, "Arresto forzato del pool di thread: cancellazione dei task non ancora eseguiti\n") == -1) {
+            return -1;
+        }
     }
     if((error = pthread_cond_broadcast(pool->emptyCondVar)) != 0) {
         return -1;
@@ -389,16 +398,23 @@ int stopThreadPool(threadPool *pool, int hardShutdown) {
         }
         (pool->numeroTaskInCoda)++;
     }
+    if(traceOnLog(pool->log, "Invio messaggio di arresto ai thread worker\n") == -1) {
+        return -1;
+    }
     free(endTask);
     pool->isEmpty = 0;
     pool->shutdown = 1;
     UNLOCK_POOL(-1)
     index = -1;
     while(++index < (pool->numeroThread)) {
-        if((error = pthread_join((pool->threads)[index], NULL)) != 0) {
+        if((error = pthread_join((pool->threads)[index], (void **) &status)) != 0) {
             errno = error;
             return -1;
         }
+        free(status);
+    }
+    if(traceOnLog(pool->log, "Pool di thread fermato correttamente\n") == -1) {
+        return -1;
     }
     FREE_POOL_THREAD()
 

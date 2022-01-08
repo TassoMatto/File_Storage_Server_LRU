@@ -129,12 +129,17 @@ void* deleteFirstElement(Queue **q) {
  * @param q             Coda da cancellare
  */
 void destroyQueue(Queue **q, Free_Data destroy) {
-    /** Controllo parametri **/
-    if(*q == NULL) return;
+    /** Variabili **/
+    Queue *del = NULL;
 
-    /** Cancello la coda in modo bottom-up **/
-    destroyQueue(&((*q)->next), destroy);
-    destroy((*q)->data);
-    free(*q);
+    /** Cancello la coda **/
+    while((*q) != NULL) {
+        del = (*q);
+        (*q) = (*q)->next;
+        destroy(del->data);
+        free(del);
+        printf("Elimino elemento coda\n");
+    }
+
     *q = NULL;
 }

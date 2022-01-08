@@ -16,6 +16,8 @@
     #include <stdlib.h>
     #include <stdio.h>
     #include <string.h>
+    #include <unistd.h>
+    #include <errno.h>
 
 
     /**
@@ -24,6 +26,13 @@
      * @return                  In caso di successo ritorna il valore numero della stringa, altrimenti -1
      */
     long isNumber(const char*);
+
+
+    ssize_t sendMSG(int, void *, size_t);
+
+
+    ssize_t receiveMSG(int, void **, size_t *);
+
 
 
 #endif //FILE_STORAGE_SERVER_LRU_UTILS_H

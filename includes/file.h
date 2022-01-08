@@ -73,6 +73,22 @@
 
 
     /**
+     * @brief                   Controlla che un file sia stato aperto da quel FD
+     * @fun                     fileIsOpenedFrom
+     * @return                  (1) se Fd ha aperto il file; (0) altrimenti [setta errno]
+     */
+    int fileIsOpenedFrom(myFile *, int);
+
+
+    /**
+     * @brief               Controlla che FD abbia effettuato la lock
+     * @fun                 fileIsLockedFrom
+     * @return              (1) se Fd ha la lock sul file; (0) se non ha la lock; (-1) se ci sono errori [setta errno]
+     */
+    int fileIsLockedFrom(myFile *, int);
+
+
+    /**
      * @brief                       Aggiorna il contenuto di un file
      * @fun                         addContentToFile
      * @return                      Ritorna la nuova dimensione del file; altrimenti ritorna -1 [setta errno]

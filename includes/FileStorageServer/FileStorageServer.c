@@ -51,6 +51,14 @@ static void free_file(void *f) {
 }
 
 
+static void free_preIns(void *d) {
+    ClientFile *cl = (ClientFile *) d;
+
+    destroyFile(&(cl->f));
+    free(cl);
+}
+
+
 /**
  * @brief           Compara un file con il pathname che si vuole ricercare
  * @fun             findFileOnLRU
@@ -159,8 +167,8 @@ Settings* readConfigFile(const char *configPathname) {
         // Imposto il canale di comunicazione socket
         if((serverMemory->socket == NULL) && ((serverMemory->socket = (char *) calloc(MAX_BUFFER_LEN, sizeof(char))) == NULL)) { error = errno; free(buffer); fclose(file); free(serverMemory); errno = error; return NULL; }
         if(((opt = strstr(buffer, "socket")) != NULL) && ((opt = strrchr(opt, '=')) != NULL) && (strstr(opt+1, ".sk") != NULL)) {
-            strncpy(serverMemory->socket, opt+1, strnlen(opt+1, MAX_BUFFER_LEN)+1);
-            (serverMemory->socket)[strnlen(opt+1, MAX_BUFFER_LEN)] = '\0';
+            strncpy(serverMemory->socket, opt+1, strnlen(opt+1, MAX_BUFFER_LEN)-1);
+            (serverMemory->socket)[strnlen(serverMemory->socket, MAX_BUFFER_LEN)-1] = '\0';
             continue;
         }
         else if(serverMemory->socket == NULL) strncpy(serverMemory->socket, DEFAULT_SOCKET, strnlen(DEFAULT_SOCKET, MAX_BUFFER_LEN)+1);
@@ -181,6 +189,115 @@ Settings* readConfigFile(const char *configPathname) {
     fclose(file);
 
     return serverMemory;
+}
+
+
+/**
+ * @brief                   Creo la tabella che conterranno i file vuoti
+ *                          non ancora scritti e salvati nella cache
+ * @fun                     createPreInserimento
+ * @param dim               Dimensione della tabella di Pre-Inserimento
+ * @param log               File di log per il tracciamento delle operazioni
+ * @return                  Ritorna la struttura di Pre-Inserimento; in caso di errore [setta errno]
+ */
+Pre_Inserimento* createPreInserimento(int dim, serverLogFile *log) {
+    /** Variabili **/
+    int error = 0;
+    Pre_Inserimento *pI = NULL;
+
+    /** Creo la struttura che ospita i file prima di inserirli in memoria **/
+    if((pI = (Pre_Inserimento *) malloc(sizeof(Pre_Inserimento))) == NULL) { return NULL; }
+    memset(pI, 0, sizeof(Pre_Inserimento));
+    if((pI->pI = icl_hash_create(dim, NULL, NULL)) == NULL) {
+        errno = EAGAIN;
+        free(pI);
+        return NULL;
+    }
+    if(((pI->lockPI) = (pthread_mutex_t *) malloc(sizeof(pthread_mutex_t))) == NULL) {
+        icl_hash_destroy(pI->pI, NULL, NULL);
+        free(pI);
+        return NULL;
+    }
+    if((error = pthread_mutex_init(pI->lockPI, NULL)) != 0) {
+        free(pI->lockPI);
+        icl_hash_destroy(pI->pI, NULL, NULL);
+        free(pI);
+    }
+    pI->log = log;
+
+    return pI;
+}
+
+
+/**
+ * @brief                   Crea il file che successivamente verra' aggiunto alla memoria cache
+ * @fun                     createFileToInsert
+ * @param pI                Tabella di Pre-Inserimento
+ * @param pathname          Pathname del file da creare
+ * @param maxUtenti         Numero massimo di utenti che il file puo'gestire
+ * @param fd                FD del client che apre il file
+ * @param lock              Flag che mi indica la possibilita' di effettuare la lock sul file da parte di fd
+ * @return                  (0) in caso di successo; (-1) [setta errno] altrimenti
+ */
+int createFileToInsert(Pre_Inserimento *pI, const char *pathname, unsigned int maxUtenti, int fd, int lock) {
+    /** Variabili **/
+    int error = 0;
+    myFile *create = NULL;
+    ClientFile *cl = NULL;
+    char *copy = NULL;
+
+    /** Controllo parametri **/
+    if(pI == NULL) { printf("NO1"); errno = EINVAL; return -1; }
+    if(pathname == NULL) { printf("NO2");  errno = EINVAL; return -1; }
+    if(fd <= 0) {  printf("NO3"); errno = EINVAL; return -1; }
+
+    /** Creo il file e lo aggiungo nella lista di PreInserimento **/
+    if((copy = (char *) calloc(strnlen(pathname, MAX_PATHNAME)+1, sizeof(char))) == NULL) {
+        return -1;
+    }
+    if((create = createFile(pathname, maxUtenti, NULL)) == NULL) {
+        free(copy);
+        return -1;
+    }
+    if(openFile(create, fd) != 0) {
+        destroyFile(&create);
+        free(copy);
+        return -1;
+    }
+    if((lock) && (lockFile(create, fd) != 0)) {
+        destroyFile(&create);
+        free(copy);
+        return -1;
+    }
+    if((cl = (ClientFile *) malloc(sizeof(ClientFile))) == NULL) {
+        destroyFile(&create);
+        free(copy);
+    }
+    cl->f = create;
+    cl->fd_cl = fd;
+    if((error = pthread_mutex_lock(pI->lockPI)) != 0) {
+        free(cl);
+        destroyFile(&create);
+        free(copy);
+        errno = error;
+        return -1;
+    }
+    if(icl_hash_insert(pI->pI, copy, cl) == NULL) {
+        pthread_mutex_unlock(pI->lockPI);
+        free(cl);
+        destroyFile(&create);
+        free(copy);
+        return -1;
+    }
+    if((error = pthread_mutex_unlock(pI->lockPI)) != 0) {
+        free(cl);
+        destroyFile(&create);
+        free(copy);
+        errno = error;
+        return -1;
+    }
+
+    return 0;
 }
 
 
@@ -339,37 +456,79 @@ int openFileOnCache(LRU_Memory *cache, const char *pathname, int openFD) {
 
 
 /**
- * @brief                   Aggiungo un file alla memoria cache
- * @fun                     addFileOnCache
- * @param cache             Memoria cache su cui aggiungere il file
- * @param newFile           File da aggiungere
- * @return                  In caso di errore ritorna NULL con errno settato; altrimenti ritorna NULL o
- *                          una lista di file cacciati per Memory Miss
+ * @brief               Funzione che aggiunge il file creato da fd nella memoria cache (gia' creato e aggiunto in Pre-Inserimento)
+ * @fun                 addFileOnCache
+ * @param cache         Memoria cache
+ * @param pI            Memoria di Pre-Inserimento
+ * @param pathname      Pathname del file da andare a caricare
+ * @param fd            Fd di colui che aggiunge il file
+ * @return              Ritorna i file espulsi in seguito a memory miss oppure NULL; in caso di errore nell'aggiunta del file
+ *                      viene settato errno
  */
-myFile** addFileOnCache(LRU_Memory *cache, myFile** newFile) {
+myFile** addFileOnCache(LRU_Memory *cache, Pre_Inserimento *pI, const char *pathname, int fd) {
     /** Variabili **/
     int error = 0, numKick = 0;
     char *copy = NULL;
     unsigned int hashPathname = 0;
-    myFile **kickedFiles = NULL;
+    ClientFile *cl = NULL;
+    myFile **kickedFiles = NULL, *toAdd = NULL;
 
     /** Controllo parametri **/
     if(cache == NULL) { errno = EINVAL; return NULL; }
-    if(newFile == NULL) { errno = EINVAL; return NULL; }
+    if(pI == NULL) { errno = EINVAL; return NULL; }
+    if(pathname == NULL) { errno = EINVAL; return NULL; }
+    if(fd <= 0) { errno = EINVAL; return NULL; }
 
     /** Aggiungo il file **/
-    if((copy = (char *) calloc(strnlen((*newFile)->pathname, MAX_PATHNAME)+1, sizeof(char))) == NULL) {
+    if((copy = (char *) calloc(strnlen(pathname, MAX_PATHNAME)+1, sizeof(char))) == NULL) {
         return NULL;
     }
-    strncpy(copy, (*newFile)->pathname, strnlen((*newFile)->pathname, MAX_PATHNAME)+1);
+    strncpy(copy, pathname, strnlen(pathname, MAX_PATHNAME)+1);
     hashPathname = hash_pjw(copy), hashPathname %= 2*(cache->maxFileOnline);
+    if((error = pthread_mutex_lock(pI->lockPI)) != 0) {
+        free(copy);
+        errno = error;
+        return NULL;
+    }
+    if((cl = (ClientFile *) icl_hash_find(pI->pI, copy)) == NULL) {
+        pthread_mutex_unlock(pI->lockPI);
+        free(copy);
+        errno = EAGAIN;
+        return NULL;
+    }
+    if(fd != cl->fd_cl) {
+        pthread_mutex_unlock(pI->lockPI);
+        free(copy);
+        errno = EAGAIN;
+        return NULL;
+    }
+    toAdd = cl->f;
+    free(cl);
+    if(!fileIsOpenedFrom(toAdd, fd) || !fileIsLockedFrom(toAdd, fd)) {
+        pthread_mutex_unlock(pI->lockPI);
+        free(copy);
+        errno = EACCES;
+        return NULL;
+    }
+    if(icl_hash_delete(pI->pI, copy, free, NULL) == -1) {
+        pthread_mutex_unlock(pI->lockPI);
+        destroyFile(&toAdd);
+        free(copy);
+        errno = EAGAIN;
+        return NULL;
+    }
+    if((error = pthread_mutex_unlock(pI->lockPI)) != 0) {
+        free(copy);
+        destroyFile(&toAdd);
+        errno = error;
+        return NULL;
+    }
     if((error = pthread_mutex_lock(cache->LRU_Access)) != 0) { errno = error; free(copy); return NULL; }
     MEMORY_MISS(1, 0)
-    updateTime(*newFile);
-    (*newFile)->lockAccessFile = (cache->Files_Access) + hashPathname;
-    if(icl_hash_insert(cache->tabella, copy, *newFile) == NULL) { pthread_mutex_unlock(cache->LRU_Access); free(copy); errno = EAGAIN; return kickedFiles; }
-    (cache->LRU)[(cache->fileOnline)++] = *newFile;
-    *newFile = NULL;
+    updateTime(toAdd);
+    toAdd->lockAccessFile = (cache->Files_Access) + hashPathname;
+    if(icl_hash_insert(cache->tabella, copy, toAdd) == NULL) { pthread_mutex_unlock(cache->LRU_Access); free(copy); errno = EAGAIN; return kickedFiles; }
+    (cache->LRU)[(cache->fileOnline)++] = toAdd;
     if((cache->massimoNumeroDiFileOnline) < (cache->fileOnline)) (cache->massimoNumeroDiFileOnline) = (cache->fileOnline);
     if((error = pthread_mutex_unlock(cache->LRU_Access)) != 0) { errno = error; free(copy); return kickedFiles; }
     LRU_Update(cache->LRU, cache->fileOnline);
@@ -471,6 +630,59 @@ myFile** appendFile(LRU_Memory *cache, const char *pathname, void *buffer, ssize
     LRU_Update(cache->LRU, cache->fileOnline);
 
     return kickedFiles;
+}
+
+
+/**
+ * @brief                   Funzione che legge il contenuto del file e ne restituisce una copia
+ * @fun                     readFileOnCache
+ * @param cache             Memoria cache
+ * @param pathname          Pathname del file da leggere
+ * @param dataContent       Contenuto del file
+ * @return                  Ritorna la dimensione del buffer; (-1) altrimenti [setta errno]
+ */
+size_t readFileOnCache(LRU_Memory *cache, const char *pathname, void **dataContent) {
+    /** Variabili **/
+    int error = 0;
+    size_t size = -1;
+    myFile *readF = NULL;
+
+    /** Controllo parametri **/
+    if(cache == NULL) { errno = EINVAL; return -1; }
+    if(pathname == NULL) { errno = EINVAL; return -1; }
+
+    /** Trovo il file e lo leggo **/
+    if((error = pthread_mutex_lock(cache->LRU_Access)) != 0) {
+        errno = error;
+        return -1;
+    }
+    if((readF = (myFile *) icl_hash_find(cache->tabella, (void *) pathname)) == NULL) {
+        pthread_mutex_unlock(cache->LRU_Access);
+        errno = ENOENT;
+        return -1;
+    }
+    if((error = pthread_mutex_lock(readF->lockAccessFile)) != 0) {
+        pthread_mutex_unlock(cache->LRU_Access);
+        errno = error;
+        return -1;
+    }
+    if((error = pthread_mutex_unlock(cache->LRU_Access)) != 0) {
+        pthread_mutex_unlock(readF->lockAccessFile);
+        errno = error;
+        return -1;
+    }
+    if((*dataContent = malloc(readF->size)) == NULL) {
+        pthread_mutex_unlock(readF->lockAccessFile);
+        return -1;
+    }
+    memcpy(*dataContent, readF->buffer, readF->size);
+    size = readF->size;
+    if((error = pthread_mutex_unlock(readF->lockAccessFile)) != 0) {
+        errno = error;
+        return -1;
+    }
+
+    return size;
 }
 
 
@@ -583,8 +795,9 @@ int unlockFileOnCache(LRU_Memory *cache, const char *pathname, int unlockFD) {
  * @fun                     deleteLRU
  * @param serverMemory      Settings del server letti dal config file
  * @param mem               Memoria cache
+ * @param pI                Tabella di Pre-Inserimento
  */
-void deleteLRU(Settings **serverMemory, LRU_Memory **mem) {
+void deleteLRU(Settings **serverMemory, LRU_Memory **mem, Pre_Inserimento **pI) {
     /** Dealloco le impostazioni **/
     if(*serverMemory != NULL) {
         free((*serverMemory)->socket);
@@ -602,5 +815,14 @@ void deleteLRU(Settings **serverMemory, LRU_Memory **mem) {
         free((*mem)->LRU);
         free(*mem);
         *mem = NULL;
+    }
+
+    /** Dealloco il Pre-Inserimento **/
+    if(*pI != NULL) {
+        pthread_mutex_destroy((*pI)->lockPI);
+        free((*pI)->lockPI);
+        icl_hash_destroy((*pI)->pI, free, free_preIns);
+        free(*pI);
+        *pI = NULL;
     }
 }
