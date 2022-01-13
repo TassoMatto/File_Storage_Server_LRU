@@ -9,6 +9,7 @@
 
     #define FILE_STORAGE_SERVER_LRU_THREADPOOL_H
 
+    #define _POSIX_C_SOURCE 2001112L
     #include <stdlib.h>
     #include <stdio.h>
     #include <queue.h>

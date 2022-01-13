@@ -76,7 +76,6 @@ ssize_t sendMSG(int fd, void *msg, size_t msgSize) {
         return -1;
     }
     bytesSendIt += nWrites;
-
     return bytesSendIt;
 }
 

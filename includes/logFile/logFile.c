@@ -90,7 +90,7 @@ int traceOnLog(serverLogFile *serverLog, char *format, ...) {
     time = asctime_r(tm, save);
     change = (strrchr(time, '\n'));
     *change = '\0';
-    fprintf(serverLog->file, "[%s]: ", time);
+    fprintf(serverLog->file, "%s -- ", time);
     va_start(string, format);
     if(vfprintf(serverLog->file, format, string) < 0) { errno = EINVAL; return -1; }
     va_end(string);

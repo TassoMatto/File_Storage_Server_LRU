@@ -16,6 +16,7 @@
  */
 #define MEMORY_MISS(ADD_FILE, SIZE_TO_ADD)                                                                                                  \
     while((cache->maxFileOnline < (cache->fileOnline + (ADD_FILE))) || (cache->maxBytesOnline < (cache->bytesOnline + (SIZE_TO_ADD)))) {    \
+    printf("Entro miss\n"); \
         (cache->numeroMemoryMiss)++;                                                                                                        \
         numKick++;                                                                                                                          \
         if((kickedFiles = (myFile **) realloc(kickedFiles, (numKick+1)*sizeof(myFile *))) == NULL) { free(copy); return NULL; }             \
@@ -33,6 +34,11 @@
             free(copy);                                                                                                                     \
             return kickedFiles;                                                                                                             \
         }                                                                                                                                   \
+        if((error = pthread_mutex_unlock((kickedFiles[numKick-1])->lockAccessFile)) != 0) {                                                          \
+            errno = error;                                                                                                                  \
+            free(copy);                                                                                                                     \
+            return kickedFiles;                                                                                                             \
+        }\
         kickedFiles[numKick] = NULL;                                                                                                        \
     }
 
@@ -247,14 +253,15 @@ int createFileToInsert(Pre_Inserimento *pI, const char *pathname, unsigned int m
     char *copy = NULL;
 
     /** Controllo parametri **/
-    if(pI == NULL) { printf("NO1"); errno = EINVAL; return -1; }
-    if(pathname == NULL) { printf("NO2");  errno = EINVAL; return -1; }
-    if(fd <= 0) {  printf("NO3"); errno = EINVAL; return -1; }
+    if(pI == NULL) { errno = EINVAL; return -1; }
+    if(pathname == NULL) { errno = EINVAL; return -1; }
+    if(fd <= 0) { errno = EINVAL; return -1; }
 
     /** Creo il file e lo aggiungo nella lista di PreInserimento **/
     if((copy = (char *) calloc(strnlen(pathname, MAX_PATHNAME)+1, sizeof(char))) == NULL) {
         return -1;
     }
+    strncpy(copy, pathname, strnlen(pathname, MAX_PATHNAME)+1);
     if((create = createFile(pathname, maxUtenti, NULL)) == NULL) {
         free(copy);
         return -1;
@@ -296,7 +303,6 @@ int createFileToInsert(Pre_Inserimento *pI, const char *pathname, unsigned int m
         errno = error;
         return -1;
     }
-
     return 0;
 }
 
@@ -441,7 +447,10 @@ int openFileOnCache(LRU_Memory *cache, const char *pathname, int openFD) {
         errno = error;
         return -1;
     }
+    printf("Ci sono\n");
     result = openFile(toOpen, openFD);
+    perror("Cosa mi dai qui");
+    printf("Result%d\n", result);
     if(result == -1) {
         pthread_mutex_unlock(toOpen->lockAccessFile);
         return -1;
@@ -455,6 +464,55 @@ int openFileOnCache(LRU_Memory *cache, const char *pathname, int openFD) {
 }
 
 
+int closeFileOnCache(LRU_Memory *cache, const char *pathname, int closeFD) {
+    /** Variabili **/
+    int fdReturn = 0, error = 0;
+    myFile *toClose = NULL;
+
+    /** Controllo variabili **/
+    if(cache == NULL) { errno = EINVAL; return -1; }
+    if(pathname == NULL) { errno = EINVAL; return -1; }
+    if(closeFD <= 0) { errno = EINVAL; return -1; }
+
+    /** Chiudo il file nel server **/
+    if((error = pthread_mutex_lock(cache->LRU_Access)) != 0) {
+        errno = error;
+        return -1;
+    }
+    if((toClose = (myFile *) icl_hash_find(cache->tabella, (void *) pathname)) == NULL) {
+        pthread_mutex_unlock(cache->LRU_Access);
+        errno = ENOENT;
+        return -1;
+    }
+    if((error = pthread_mutex_lock(toClose->lockAccessFile)) != 0) {
+        pthread_mutex_unlock(cache->LRU_Access);
+        errno = error;
+        return -1;
+    }
+    if((error = pthread_mutex_unlock(cache->LRU_Access)) != 0) {
+        pthread_mutex_unlock(toClose->lockAccessFile);
+        errno = error;
+        return -1;
+    }
+    if(fileIsLockedFrom(toClose, closeFD)) {
+        if((fdReturn = unlockFile(toClose, closeFD)) == -1) {
+            pthread_mutex_unlock(toClose->lockAccessFile);
+            return -1;
+        }
+    }
+    if(closeFile(toClose, closeFD) == -1) {
+        pthread_mutex_unlock(toClose->lockAccessFile);
+        return -1;
+    }
+    if((error = pthread_mutex_unlock(toClose->lockAccessFile)) != 0) {
+        errno = error;
+        return -1;
+    }
+
+    return fdReturn;
+}
+
+
 /**
  * @brief               Funzione che aggiunge il file creato da fd nella memoria cache (gia' creato e aggiunto in Pre-Inserimento)
  * @fun                 addFileOnCache
@@ -462,10 +520,11 @@ int openFileOnCache(LRU_Memory *cache, const char *pathname, int openFD) {
  * @param pI            Memoria di Pre-Inserimento
  * @param pathname      Pathname del file da andare a caricare
  * @param fd            Fd di colui che aggiunge il file
+ * @param checkLock     Flag che mi indica la volontà di controllare se il file è locked o meno da fd
  * @return              Ritorna i file espulsi in seguito a memory miss oppure NULL; in caso di errore nell'aggiunta del file
  *                      viene settato errno
  */
-myFile** addFileOnCache(LRU_Memory *cache, Pre_Inserimento *pI, const char *pathname, int fd) {
+myFile** addFileOnCache(LRU_Memory *cache, Pre_Inserimento *pI, const char *pathname, int fd, int checkLock) {
     /** Variabili **/
     int error = 0, numKick = 0;
     char *copy = NULL;
@@ -484,7 +543,7 @@ myFile** addFileOnCache(LRU_Memory *cache, Pre_Inserimento *pI, const char *path
         return NULL;
     }
     strncpy(copy, pathname, strnlen(pathname, MAX_PATHNAME)+1);
-    hashPathname = hash_pjw(copy), hashPathname %= 2*(cache->maxFileOnline);
+    hashPathname = hash_pjw(copy), printf("hash: %d", hashPathname), hashPathname %= (2*(cache->maxFileOnline)), printf("hash2: %d", hashPathname);
     if((error = pthread_mutex_lock(pI->lockPI)) != 0) {
         free(copy);
         errno = error;
@@ -492,8 +551,9 @@ myFile** addFileOnCache(LRU_Memory *cache, Pre_Inserimento *pI, const char *path
     }
     if((cl = (ClientFile *) icl_hash_find(pI->pI, copy)) == NULL) {
         pthread_mutex_unlock(pI->lockPI);
+        printf("Ciao");
         free(copy);
-        errno = EAGAIN;
+        errno = ENOENT;
         return NULL;
     }
     if(fd != cl->fd_cl) {
@@ -504,7 +564,7 @@ myFile** addFileOnCache(LRU_Memory *cache, Pre_Inserimento *pI, const char *path
     }
     toAdd = cl->f;
     free(cl);
-    if(!fileIsOpenedFrom(toAdd, fd) || !fileIsLockedFrom(toAdd, fd)) {
+    if(!fileIsOpenedFrom(toAdd, fd) || ((checkLock) && (!fileIsLockedFrom(toAdd, fd)))) {
         pthread_mutex_unlock(pI->lockPI);
         free(copy);
         errno = EACCES;
@@ -530,8 +590,8 @@ myFile** addFileOnCache(LRU_Memory *cache, Pre_Inserimento *pI, const char *path
     if(icl_hash_insert(cache->tabella, copy, toAdd) == NULL) { pthread_mutex_unlock(cache->LRU_Access); free(copy); errno = EAGAIN; return kickedFiles; }
     (cache->LRU)[(cache->fileOnline)++] = toAdd;
     if((cache->massimoNumeroDiFileOnline) < (cache->fileOnline)) (cache->massimoNumeroDiFileOnline) = (cache->fileOnline);
-    if((error = pthread_mutex_unlock(cache->LRU_Access)) != 0) { errno = error; free(copy); return kickedFiles; }
     LRU_Update(cache->LRU, cache->fileOnline);
+    if((error = pthread_mutex_unlock(cache->LRU_Access)) != 0) { errno = error; free(copy); return kickedFiles; }
 
     return kickedFiles;
 }
@@ -587,7 +647,7 @@ myFile* removeFileOnCache(LRU_Memory *cache, const char *pathname) {
  * @param size                  Dimensione del buffer da aggiungere
  * @return                      Ritorna gli eventuali file espulsi; in caso di errore valutare se si setta errno
  */
-myFile** appendFile(LRU_Memory *cache, const char *pathname, void *buffer, ssize_t size) {
+myFile** appendFile(LRU_Memory *cache, const char *pathname, void *buffer, size_t size) {
     /** Variabili **/
     myFile **kickedFiles = NULL, *fileToEdit = NULL;
     int error = 0, numKick = 0;
@@ -614,21 +674,37 @@ myFile** appendFile(LRU_Memory *cache, const char *pathname, void *buffer, ssize
         return NULL;
     }
     MEMORY_MISS(0, size)
+    printf("Uscito\n");
     if((error = pthread_mutex_lock(fileToEdit->lockAccessFile)) != 0) {
         pthread_mutex_unlock(cache->LRU_Access);
         free(copy);
         errno = error;
         return kickedFiles;
     }
+    printf("Arrivato\n");
     if(addContentToFile(fileToEdit, buffer, size) == -1) {
         pthread_mutex_unlock(fileToEdit->lockAccessFile);
         pthread_mutex_unlock(cache->LRU_Access);
         return kickedFiles;
     }
+    printf("fatto\n");
     cache->bytesOnline += size;
     if((cache->numeroMassimoBytesCaricato) < (cache->bytesOnline)) (cache->numeroMassimoBytesCaricato) = (cache->bytesOnline);
     LRU_Update(cache->LRU, cache->fileOnline);
+    if((error = pthread_mutex_unlock(fileToEdit->lockAccessFile)) != 0) {
+        pthread_mutex_unlock(fileToEdit->lockAccessFile);
+        errno = error;
+        return NULL;
+    }
+    if((error = pthread_mutex_unlock(cache->LRU_Access)) != 0) {
+        pthread_mutex_unlock(fileToEdit->lockAccessFile);
+        errno = error;
+        return NULL;
+    }
 
+
+    printf("FFFF\n");
+    free(copy);
     return kickedFiles;
 }
 
@@ -683,6 +759,60 @@ size_t readFileOnCache(LRU_Memory *cache, const char *pathname, void **dataConte
     }
 
     return size;
+}
+
+
+myFile** readsRandFiles(LRU_Memory *cache, int N) {
+    /** Variabili **/
+    myFile **filesRead = NULL, **new = NULL;
+    int error = 0, index = -1, nReads = 0;
+
+    /** Controllo parametri **/
+    if(cache == NULL) { errno = EINVAL; return NULL; }
+
+    /** Leggo i file in ordine di inserimento nella LRU **/
+    if(N <= 0) N = (int) cache->maxFileOnline;
+    if((error = pthread_mutex_lock(cache->LRU_Access)) != 0) {
+        errno = error;
+        return NULL;
+    }
+    while(((cache->LRU)[++index] != NULL) && (index < N)) {
+        printf("Entro\n");
+        if((error = pthread_mutex_lock((cache->LRU[index])->lockAccessFile)) != 0) {
+            pthread_mutex_unlock(cache->LRU_Access);
+            errno = error;
+            return NULL;
+        }
+        //if(cache->LRU[index]->utenteLock == -1) {
+            nReads++;
+            if((new = (myFile **) realloc(filesRead, (nReads+1)*sizeof(myFile *))) == NULL) {
+                pthread_mutex_unlock((cache->LRU[index])->lockAccessFile);
+                pthread_mutex_unlock(cache->LRU_Access);
+                errno = error;
+                return NULL;
+            }
+            filesRead = new;
+            if((filesRead[nReads-1] = (myFile *) malloc(sizeof(myFile))) == NULL) {
+                pthread_mutex_unlock((cache->LRU[index])->lockAccessFile);
+                pthread_mutex_unlock(cache->LRU_Access);
+                errno = error;
+                return NULL;
+            }
+            memcpy(filesRead[nReads-1], (cache->LRU)[index], sizeof(myFile));
+            filesRead[nReads] = NULL;
+        //}
+        if((error = pthread_mutex_unlock((cache->LRU[index])->lockAccessFile)) != 0) {
+            pthread_mutex_unlock(cache->LRU_Access);
+            errno = error;
+            return NULL;
+        }
+    }
+    if((error = pthread_mutex_unlock(cache->LRU_Access)) != 0) {
+        errno = error;
+        return NULL;
+    }
+
+    return filesRead;
 }
 
 

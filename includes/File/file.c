@@ -80,7 +80,7 @@ myFile* createFile(const char *pathname, unsigned int maxUtentiConnessiAlFile, p
  * @param sizeToAdd             Dimensione del buffer
  * @return                      Ritorna la nuova dimensione del file; altrimenti ritorna -1 [setta errno]
  */
-size_t addContentToFile(myFile *file, void *toAdd, ssize_t sizeToAdd) {
+size_t addContentToFile(myFile *file, void *toAdd, size_t sizeToAdd) {
     /** Variabili **/
     void *copyBuffer = NULL;
 
@@ -221,7 +221,7 @@ int closeFile(myFile *file, int fd) {
  */
 int lockFile(myFile *file, int fd) {
     /** Variabili **/
-    int *fdInsert = NULL;
+    int *fdInsert = NULL, res = 0;
 
     /** Controllo parametri **/
     if(file == NULL) { errno = EINVAL; return -1; }
@@ -233,11 +233,12 @@ int lockFile(myFile *file, int fd) {
     if((fdInsert = (int *) malloc(sizeof(int))) == NULL) return -1;
     *fdInsert = fd;
     if(file->utentiLocked == NULL) file->utenteLock = fd;
+    else res = 1;
     if((file->utentiLocked = insertIntoQueue(file->utentiLocked, fdInsert, sizeof(int))) == NULL) { file->utenteLock = -1; free(fdInsert); return -1; }
 
     free(fdInsert);
     updateTime(file);
-    return 0;
+    return res;
 }
 
 
@@ -250,6 +251,7 @@ int lockFile(myFile *file, int fd) {
  */
 int unlockFile(myFile *file, int fd) {
     /** Variabili **/
+    int retValue = 0;
     void *delete = NULL;
 
     /** Controllo parametri **/
@@ -259,12 +261,14 @@ int unlockFile(myFile *file, int fd) {
     /** Lock del file **/
     if(!fileIsOpenedFrom(file, fd)) { errno = EBADF; return -1; }
     if(!fileIsLockedFrom(file, fd)) { errno = EBADF; return -1; }
+    retValue = file->utenteLock;
     if((delete = deleteElementFromQueue(&(file->utentiLocked), &fd, compare_fd)) == NULL) { errno = EBADF; return -1; }
-    if(file->utentiLocked != NULL) file->utenteLock = *(int *) file->utentiLocked->data;
+    if((file->utentiLocked != NULL) && (file->utenteLock != *(int *) file->utentiLocked->data)) file->utenteLock = *(int *) file->utentiLocked->data;
+    else if(file->utentiLocked == NULL) file->utenteLock = -1;
 
-    free(delete);
     updateTime(file);
-    return 0;
+    if((file->utentiLocked == NULL) || (retValue == file->utenteLock)) return 0;
+    else return file->utenteLock;
 }
 
 

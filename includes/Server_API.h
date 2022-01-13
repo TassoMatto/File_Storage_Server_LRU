@@ -14,6 +14,7 @@
     #define O_CREATE 127
     #define O_LOCK 128
 
+    #define _POSIX_C_SOURCE 2001112L
     #include <stdlib.h>
     #include <stdio.h>
     #include <utils.h>
@@ -29,6 +30,11 @@
     } Task_Package;
 
 
+    /**
+     * @brief                       Accoglie le richieste del client
+     * @fun                         ServerTaskds
+     * @return                      (NULL) in caso di successo; altrimenti riporto un messaggio di errore
+     */
     void* ServerTasks(unsigned int, void *);
 
 

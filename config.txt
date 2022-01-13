@@ -12,10 +12,10 @@ maxMB=1200
 socket=socket.sk
 
 #   Numero massimo di file
-maxNumeroFileCaricabili=6
+maxNumeroFileCaricabili=3
 
 #   Numero massimo di utenti
-maxUtentiConnessi=1000
+maxUtentiConnessi=10
 
 #   Numero massimo di utenti che possono aprire un file contemporaneamente
 maxUtentiPerFile=3

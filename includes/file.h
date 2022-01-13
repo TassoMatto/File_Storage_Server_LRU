@@ -93,7 +93,7 @@
      * @fun                         addContentToFile
      * @return                      Ritorna la nuova dimensione del file; altrimenti ritorna -1 [setta errno]
      */
-    size_t addContentToFile(myFile *, void *, ssize_t);
+    size_t addContentToFile(myFile *, void *, size_t);
 
 
     /**

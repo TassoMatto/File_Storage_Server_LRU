@@ -1,176 +1,288 @@
-[Sat Jan  8 16:18:04 2022]: 				[FILE STORAGE SERVER]
-[Sat Jan  8 16:18:04 2022]: Avvio del server in corso...
-[Sat Jan  8 16:18:04 2022]: Applicazione della maschera hai segnali SIGINT - SIGQUIT - SIGHUP per gestione personalizzata
-[Sat Jan  8 16:18:04 2022]: Lettura delle impostazioni del server da config.txt
-[Sat Jan  8 16:18:04 2022]: Apertura pipe comunicazione Thread Manager - Thread Worker per riabilitazione del client in lettura sulla socket
-[Sat Jan  8 16:18:04 2022]: Apertura della socket socket.sk
-[Sat Jan  8 16:18:04 2022]: Avvio del pool di 20 thread
-[Sat Jan  8 16:18:04 2022]: Thread n°2 avviato
-[Sat Jan  8 16:18:05 2022]: Thread n°4 avviato
-[Sat Jan  8 16:18:06 2022]: Thread n°7 avviato
-[Sat Jan  8 16:18:06 2022]: Thread n°8 avviato
-[Sat Jan  8 16:18:06 2022]: Thread n°9 avviato
-[Sat Jan  8 16:18:06 2022]: Thread n°5 avviato
-[Sat Jan  8 16:18:07 2022]: Thread n°15 avviato
-[Sat Jan  8 16:18:08 2022]: Thread n°3 avviato
-[Sat Jan  8 16:18:08 2022]: Thread n°19 avviato
-[Sat Jan  8 16:18:09 2022]: Thread n°1 avviato
-[Sat Jan  8 16:18:09 2022]: Thread n°11 avviato
-[Sat Jan  8 16:18:09 2022]: Thread n°12 avviato
-[Sat Jan  8 16:18:09 2022]: Thread n°13 avviato
-[Sat Jan  8 16:18:09 2022]: Thread n°16 avviato
-[Sat Jan  8 16:18:09 2022]: Thread n°14 avviato
-[Sat Jan  8 16:18:09 2022]: Thread n°17 avviato
-[Sat Jan  8 16:18:09 2022]: Thread n°6 avviato
-[Sat Jan  8 16:18:09 2022]: Thread n°18 avviato
-[Sat Jan  8 16:18:09 2022]: Thread n°10 avviato
-[Sat Jan  8 16:18:09 2022]: Thread n°20 avviato
-[Sat Jan  8 16:18:09 2022]: Pool di thread avviato
-[Sat Jan  8 16:18:09 2022]: Avvio del threadpool effettuato correttamente: avviati 20 thread
-[Sat Jan  8 16:18:09 2022]: Memoria cache costruita
-[Sat Jan  8 16:18:09 2022]: Gestione dei segnali affidata a thread specializzato
-[Sat Jan  8 16:18:09 2022]: Server avviato correttamente...
-[Sat Jan  8 16:18:09 2022]: Thread n°2 in attesa di un task da eseguire
-[Sat Jan  8 16:18:09 2022]: Select: nuovi fd pronti in lettura
-[Sat Jan  8 16:18:09 2022]: Accept(): richiesta di accettazione di un client
-[Sat Jan  8 16:18:09 2022]: Thread n°4 in attesa di un task da eseguire
-[Sat Jan  8 16:18:09 2022]: Accept(): client con fd: 7 accettato
-[Sat Jan  8 16:18:09 2022]: Thread n°7 in attesa di un task da eseguire
-[Sat Jan  8 16:18:09 2022]: Thread n°8 in attesa di un task da eseguire
-[Sat Jan  8 16:18:09 2022]: Thread n°9 in attesa di un task da eseguire
-[Sat Jan  8 16:18:09 2022]: Thread n°5 in attesa di un task da eseguire
-[Sat Jan  8 16:18:09 2022]: Thread n°15 in attesa di un task da eseguire
-[Sat Jan  8 16:18:09 2022]: Thread n°3 in attesa di un task da eseguire
-[Sat Jan  8 16:18:09 2022]: Thread n°19 in attesa di un task da eseguire
-[Sat Jan  8 16:18:09 2022]: Thread n°1 in attesa di un task da eseguire
-[Sat Jan  8 16:18:09 2022]: Thread n°11 in attesa di un task da eseguire
-[Sat Jan  8 16:18:09 2022]: Thread n°12 in attesa di un task da eseguire
-[Sat Jan  8 16:18:09 2022]: Thread n°13 in attesa di un task da eseguire
-[Sat Jan  8 16:18:09 2022]: Thread n°16 in attesa di un task da eseguire
-[Sat Jan  8 16:18:09 2022]: Thread n°14 in attesa di un task da eseguire
-[Sat Jan  8 16:18:09 2022]: Thread n°17 in attesa di un task da eseguire
-[Sat Jan  8 16:18:09 2022]: Thread n°6 in attesa di un task da eseguire
-[Sat Jan  8 16:18:09 2022]: Thread n°18 in attesa di un task da eseguire
-[Sat Jan  8 16:18:09 2022]: Thread n°10 in attesa di un task da eseguire
-[Sat Jan  8 16:18:09 2022]: Thread n°20 in attesa di un task da eseguire
-[Sat Jan  8 16:18:11 2022]: Select: nuovi fd pronti in lettura
-[Sat Jan  8 16:18:11 2022]: Select: nuovi fd pronti in lettura
-[Sat Jan  8 16:18:11 2022]: Client con fd: 7, invio richiesta al pool di thread
-[Sat Jan  8 16:18:11 2022]: Client con fd: 7, richiesta al pool di thread inviata correttamente
-[Sat Jan  8 16:18:11 2022]: Thread n°2: tentativo di prendere un task
-[Sat Jan  8 16:18:11 2022]: Thread n°2 risvegliato
-[Sat Jan  8 16:18:11 2022]: Thread n°2: esecuzione nuovo Task
-[Sat Jan  8 16:18:11 2022]: Thread n°2: avvio task in corso
-[Sat Jan  8 16:18:11 2022]: Thread n°2: richiesta di openFile
-[Sat Jan  8 16:18:11 2022]: Thread n°2: openFile su ciao riuscita: file creato con flags O_CREATE | O_LOCK dal client con FD: 7
-[Sat Jan  8 16:18:11 2022]: Thread n°2 in attesa di un task da eseguire
-[Sat Jan  8 16:18:11 2022]: Select: nuovi fd pronti in lettura
-[Sat Jan  8 16:18:11 2022]: Pipe pronta in lettura: riabilitazione vecchi fd disabilitati
-[Sat Jan  8 16:18:11 2022]: Client con fd: 7 connessione chiusa
-[Sat Jan  8 16:18:13 2022]: Select: nuovi fd pronti in lettura
-[Sat Jan  8 16:18:15 2022]: Select: nuovi fd pronti in lettura
-[Sat Jan  8 16:18:15 2022]: Server in fase di spegnimento...
-[Sat Jan  8 16:18:15 2022]: Arresto forzato: richiesta di spegnimento immediato
-[Sat Jan  8 16:18:15 2022]: Arresto forzato del pool di thread: cancellazione dei task non ancora eseguiti
-[Sat Jan  8 16:18:15 2022]: Invio messaggio di arresto ai thread worker
-[Sat Jan  8 16:18:15 2022]: Thread n°16: tentativo di prendere un task
-[Sat Jan  8 16:18:15 2022]: Thread n°16 risvegliato
-[Sat Jan  8 16:18:15 2022]: Thread n°16: esecuzione nuovo Task
-[Sat Jan  8 16:18:15 2022]: Thread n°16: avvio task in corso
-[Sat Jan  8 16:18:15 2022]: Thread n°10: tentativo di prendere un task
-[Sat Jan  8 16:18:15 2022]: Thread n°10 risvegliato
-[Sat Jan  8 16:18:15 2022]: Thread n°10: esecuzione nuovo Task
-[Sat Jan  8 16:18:15 2022]: Thread n°10: avvio task in corso
-[Sat Jan  8 16:18:15 2022]: Thread n°17: tentativo di prendere un task
-[Sat Jan  8 16:18:15 2022]: Thread n°17 risvegliato
-[Sat Jan  8 16:18:15 2022]: Thread n°17: esecuzione nuovo Task
-[Sat Jan  8 16:18:15 2022]: Thread n°17: avvio task in corso
-[Sat Jan  8 16:18:15 2022]: Thread n°7: tentativo di prendere un task
-[Sat Jan  8 16:18:15 2022]: Thread n°7 risvegliato
-[Sat Jan  8 16:18:15 2022]: Thread n°7: esecuzione nuovo Task
-[Sat Jan  8 16:18:15 2022]: Thread n°7: avvio task in corso
-[Sat Jan  8 16:18:15 2022]: Thread n°15: tentativo di prendere un task
-[Sat Jan  8 16:18:15 2022]: Thread n°15 risvegliato
-[Sat Jan  8 16:18:15 2022]: Thread n°15: esecuzione nuovo Task
-[Sat Jan  8 16:18:15 2022]: Thread n°15: avvio task in corso
-[Sat Jan  8 16:18:15 2022]: Thread n°14: tentativo di prendere un task
-[Sat Jan  8 16:18:15 2022]: Thread n°14 risvegliato
-[Sat Jan  8 16:18:15 2022]: Thread n°14: esecuzione nuovo Task
-[Sat Jan  8 16:18:15 2022]: Thread n°14: avvio task in corso
-[Sat Jan  8 16:18:15 2022]: Thread n°13: tentativo di prendere un task
-[Sat Jan  8 16:18:15 2022]: Thread n°13 risvegliato
-[Sat Jan  8 16:18:15 2022]: Thread n°13: esecuzione nuovo Task
-[Sat Jan  8 16:18:15 2022]: Thread n°13: avvio task in corso
-[Sat Jan  8 16:18:15 2022]: Thread n°3: tentativo di prendere un task
-[Sat Jan  8 16:18:15 2022]: Thread n°3 risvegliato
-[Sat Jan  8 16:18:15 2022]: Thread n°3: esecuzione nuovo Task
-[Sat Jan  8 16:18:15 2022]: Thread n°3: avvio task in corso
-[Sat Jan  8 16:18:15 2022]: Thread n°1: tentativo di prendere un task
-[Sat Jan  8 16:18:15 2022]: Thread n°1 risvegliato
-[Sat Jan  8 16:18:15 2022]: Thread n°1: esecuzione nuovo Task
-[Sat Jan  8 16:18:15 2022]: Thread n°1: avvio task in corso
-[Sat Jan  8 16:18:15 2022]: Thread n°12: tentativo di prendere un task
-[Sat Jan  8 16:18:15 2022]: Thread n°12 risvegliato
-[Sat Jan  8 16:18:15 2022]: Thread n°12: esecuzione nuovo Task
-[Sat Jan  8 16:18:15 2022]: Thread n°12: avvio task in corso
-[Sat Jan  8 16:18:15 2022]: Thread n°9: tentativo di prendere un task
-[Sat Jan  8 16:18:15 2022]: Thread n°9 risvegliato
-[Sat Jan  8 16:18:15 2022]: Thread n°9: esecuzione nuovo Task
-[Sat Jan  8 16:18:15 2022]: Thread n°9: avvio task in corso
-[Sat Jan  8 16:18:15 2022]: Thread n°4: tentativo di prendere un task
-[Sat Jan  8 16:18:15 2022]: Thread n°4 risvegliato
-[Sat Jan  8 16:18:15 2022]: Thread n°4: esecuzione nuovo Task
-[Sat Jan  8 16:18:15 2022]: Thread n°4: avvio task in corso
-[Sat Jan  8 16:18:15 2022]: Thread n°5: tentativo di prendere un task
-[Sat Jan  8 16:18:15 2022]: Thread n°5 risvegliato
-[Sat Jan  8 16:18:15 2022]: Thread n°5: esecuzione nuovo Task
-[Sat Jan  8 16:18:15 2022]: Thread n°5: avvio task in corso
-[Sat Jan  8 16:18:15 2022]: Thread n°9: arresto in corso
-[Sat Jan  8 16:18:15 2022]: Thread n°4: arresto in corso
-[Sat Jan  8 16:18:15 2022]: Thread n°20: tentativo di prendere un task
-[Sat Jan  8 16:18:15 2022]: Thread n°20 risvegliato
-[Sat Jan  8 16:18:15 2022]: Thread n°20: esecuzione nuovo Task
-[Sat Jan  8 16:18:15 2022]: Thread n°20: avvio task in corso
-[Sat Jan  8 16:18:15 2022]: Thread n°19: tentativo di prendere un task
-[Sat Jan  8 16:18:15 2022]: Thread n°19 risvegliato
-[Sat Jan  8 16:18:15 2022]: Thread n°19: esecuzione nuovo Task
-[Sat Jan  8 16:18:15 2022]: Thread n°19: avvio task in corso
-[Sat Jan  8 16:18:15 2022]: Thread n°6: tentativo di prendere un task
-[Sat Jan  8 16:18:15 2022]: Thread n°6 risvegliato
-[Sat Jan  8 16:18:15 2022]: Thread n°6: esecuzione nuovo Task
-[Sat Jan  8 16:18:15 2022]: Thread n°6: avvio task in corso
-[Sat Jan  8 16:18:15 2022]: Thread n°11: tentativo di prendere un task
-[Sat Jan  8 16:18:15 2022]: Thread n°11 risvegliato
-[Sat Jan  8 16:18:15 2022]: Thread n°11: esecuzione nuovo Task
-[Sat Jan  8 16:18:15 2022]: Thread n°11: avvio task in corso
-[Sat Jan  8 16:18:15 2022]: Thread n°6: arresto in corso
-[Sat Jan  8 16:18:15 2022]: Thread n°18: tentativo di prendere un task
-[Sat Jan  8 16:18:15 2022]: Thread n°18 risvegliato
-[Sat Jan  8 16:18:15 2022]: Thread n°18: esecuzione nuovo Task
-[Sat Jan  8 16:18:15 2022]: Thread n°18: avvio task in corso
-[Sat Jan  8 16:18:15 2022]: Thread n°8: tentativo di prendere un task
-[Sat Jan  8 16:18:15 2022]: Thread n°8 risvegliato
-[Sat Jan  8 16:18:15 2022]: Thread n°8: esecuzione nuovo Task
-[Sat Jan  8 16:18:15 2022]: Thread n°8: avvio task in corso
-[Sat Jan  8 16:18:15 2022]: Thread n°2: tentativo di prendere un task
-[Sat Jan  8 16:18:15 2022]: Thread n°2 risvegliato
-[Sat Jan  8 16:18:15 2022]: Thread n°2: esecuzione nuovo Task
-[Sat Jan  8 16:18:15 2022]: Thread n°8: arresto in corso
-[Sat Jan  8 16:18:15 2022]: Thread n°7: arresto in corso
-[Sat Jan  8 16:18:15 2022]: Thread n°18: arresto in corso
-[Sat Jan  8 16:18:15 2022]: Thread n°16: arresto in corso
-[Sat Jan  8 16:18:15 2022]: Thread n°17: arresto in corso
-[Sat Jan  8 16:18:15 2022]: Thread n°2: avvio task in corso
-[Sat Jan  8 16:18:15 2022]: Thread n°15: arresto in corso
-[Sat Jan  8 16:18:15 2022]: Thread n°10: arresto in corso
-[Sat Jan  8 16:18:15 2022]: Thread n°14: arresto in corso
-[Sat Jan  8 16:18:16 2022]: Thread n°20: arresto in corso
-[Sat Jan  8 16:18:16 2022]: Thread n°13: arresto in corso
-[Sat Jan  8 16:18:16 2022]: Thread n°3: arresto in corso
-[Sat Jan  8 16:18:16 2022]: Thread n°1: arresto in corso
-[Sat Jan  8 16:18:16 2022]: Thread n°2: arresto in corso
-[Sat Jan  8 16:18:16 2022]: Thread n°12: arresto in corso
-[Sat Jan  8 16:18:16 2022]: Thread n°5: arresto in corso
-[Sat Jan  8 16:18:16 2022]: Thread n°11: arresto in corso
-[Sat Jan  8 16:18:16 2022]: Thread n°19: arresto in corso
-[Sat Jan  8 16:18:16 2022]: Pool di thread fermato correttamente
+Thu Jan 13 17:49:15 2022 -- [THREAD MANAGER]:				[FILE STORAGE SERVER]
+Thu Jan 13 17:49:15 2022 -- [THREAD MANAGER]: Avvio del server in corso...
+Thu Jan 13 17:49:15 2022 -- [THREAD MANAGER]: Applicazione della maschera hai segnali SIGINT - SIGQUIT - SIGHUP per gestione personalizzata
+Thu Jan 13 17:49:15 2022 -- [THREAD MANAGER]: Lettura delle impostazioni del server da config.txt
+Thu Jan 13 17:49:15 2022 -- [THREAD MANAGER]: Apertura pipe comunicazione Thread Manager - Thread Worker per riabilitazione del client in lettura sulla socket
+Thu Jan 13 17:49:15 2022 -- [THREAD MANAGER]: Apertura della socket socket.sk
+Thu Jan 13 17:49:15 2022 -- [THREAD MANAGER]: Avvio del pool di 20 thread
+Thu Jan 13 17:49:15 2022 -- [THREAD 2]: thread avviato correttamente
+Thu Jan 13 17:49:15 2022 -- [THREAD 4]: thread avviato correttamente
+Thu Jan 13 17:49:16 2022 -- [THREAD 6]: thread avviato correttamente
+Thu Jan 13 17:49:16 2022 -- [THREAD 8]: thread avviato correttamente
+Thu Jan 13 17:49:16 2022 -- [THREAD 10]: thread avviato correttamente
+Thu Jan 13 17:49:17 2022 -- [THREAD 13]: thread avviato correttamente
+Thu Jan 13 17:49:17 2022 -- [THREAD 16]: thread avviato correttamente
+Thu Jan 13 17:49:17 2022 -- [THREAD MANAGER]: Pool di thread avviato
+Thu Jan 13 17:49:17 2022 -- [THREAD MANAGER]: Avvio del threadpool effettuato correttamente: avviati 20 thread
+Thu Jan 13 17:49:17 2022 -- [THREAD MANAGER]: Memoria cache costruita
+Thu Jan 13 17:49:17 2022 -- [THREAD MANAGER]: Gestione dei segnali affidata a thread specializzato
+Thu Jan 13 17:49:17 2022 -- [THREAD MANAGER]: Server avviato correttamente...
+Thu Jan 13 17:49:17 2022 -- [THREAD MANAGER]: Select: nuovi fd pronti in lettura...
+Thu Jan 13 17:49:17 2022 -- [THREAD MANAGER]: FD:6 pronto in lettura
+Thu Jan 13 17:49:17 2022 -- [THREAD MANAGER]: Accept(): richiesta di accettazione di un client
+Thu Jan 13 17:49:17 2022 -- [THREAD 17]: thread avviato correttamente
+Thu Jan 13 17:49:17 2022 -- [THREAD 7]: thread avviato correttamente
+Thu Jan 13 17:49:17 2022 -- [THREAD 18]: thread avviato correttamente
+Thu Jan 13 17:49:17 2022 -- [THREAD 19]: thread avviato correttamente
+Thu Jan 13 17:49:17 2022 -- [THREAD 10]: Nessun task trovato, mi metto in attesa
+Thu Jan 13 17:49:17 2022 -- [THREAD 5]: thread avviato correttamente
+Thu Jan 13 17:49:17 2022 -- [THREAD 9]: thread avviato correttamente
+Thu Jan 13 17:49:17 2022 -- [THREAD 3]: thread avviato correttamente
+Thu Jan 13 17:49:17 2022 -- [THREAD 15]: thread avviato correttamente
+Thu Jan 13 17:49:17 2022 -- [THREAD 1]: thread avviato correttamente
+Thu Jan 13 17:49:17 2022 -- [THREAD 11]: thread avviato correttamente
+Thu Jan 13 17:49:17 2022 -- [THREAD 14]: thread avviato correttamente
+Thu Jan 13 17:49:17 2022 -- [THREAD 12]: thread avviato correttamente
+Thu Jan 13 17:49:17 2022 -- [THREAD 20]: thread avviato correttamente
+Thu Jan 13 17:49:17 2022 -- [THREAD MANAGER]: Accept(): client con fd:7 accettato
+Thu Jan 13 17:49:17 2022 -- [THREAD 4]: Nessun task trovato, mi metto in attesa
+Thu Jan 13 17:49:17 2022 -- [THREAD MANAGER]: Select: nuovi fd pronti in lettura...
+Thu Jan 13 17:49:17 2022 -- [THREAD MANAGER]: FD:6 pronto in lettura
+Thu Jan 13 17:49:17 2022 -- [THREAD MANAGER]: Accept(): richiesta di accettazione di un client
+Thu Jan 13 17:49:17 2022 -- [THREAD 6]: Nessun task trovato, mi metto in attesa
+Thu Jan 13 17:49:17 2022 -- [THREAD MANAGER]: Accept(): client con fd:8 accettato
+Thu Jan 13 17:49:17 2022 -- [THREAD 8]: Nessun task trovato, mi metto in attesa
+Thu Jan 13 17:49:17 2022 -- [THREAD 13]: Nessun task trovato, mi metto in attesa
+Thu Jan 13 17:49:17 2022 -- [THREAD 2]: Nessun task trovato, mi metto in attesa
+Thu Jan 13 17:49:17 2022 -- [THREAD 16]: Nessun task trovato, mi metto in attesa
+Thu Jan 13 17:49:17 2022 -- [THREAD 17]: Nessun task trovato, mi metto in attesa
+Thu Jan 13 17:49:17 2022 -- [THREAD 7]: Nessun task trovato, mi metto in attesa
+Thu Jan 13 17:49:17 2022 -- [THREAD 18]: Nessun task trovato, mi metto in attesa
+Thu Jan 13 17:49:17 2022 -- [THREAD 19]: Nessun task trovato, mi metto in attesa
+Thu Jan 13 17:49:17 2022 -- [THREAD 5]: Nessun task trovato, mi metto in attesa
+Thu Jan 13 17:49:17 2022 -- [THREAD 9]: Nessun task trovato, mi metto in attesa
+Thu Jan 13 17:49:17 2022 -- [THREAD 3]: Nessun task trovato, mi metto in attesa
+Thu Jan 13 17:49:17 2022 -- [THREAD 15]: Nessun task trovato, mi metto in attesa
+Thu Jan 13 17:49:17 2022 -- [THREAD 1]: Nessun task trovato, mi metto in attesa
+Thu Jan 13 17:49:17 2022 -- [THREAD 11]: Nessun task trovato, mi metto in attesa
+Thu Jan 13 17:49:17 2022 -- [THREAD 14]: Nessun task trovato, mi metto in attesa
+Thu Jan 13 17:49:17 2022 -- [THREAD 12]: Nessun task trovato, mi metto in attesa
+Thu Jan 13 17:49:17 2022 -- [THREAD 20]: Nessun task trovato, mi metto in attesa
+Thu Jan 13 17:49:21 2022 -- [THREAD MANAGER]: Select: nuovi fd pronti in lettura...
+Thu Jan 13 17:49:21 2022 -- [THREAD MANAGER]: FD:7 pronto in lettura
+Thu Jan 13 17:49:21 2022 -- [THREAD MANAGER]: Client con fd:7, invio task al pool di thread
+Thu Jan 13 17:49:21 2022 -- [THREAD MANAGER]: Richiesta di inserimento nuovo task
+Thu Jan 13 17:49:21 2022 -- [THREAD MANAGER]: Task inviato correttamente
+Thu Jan 13 17:49:21 2022 -- [THREAD MANAGER]: Client con fd:7, richiesta al pool di thread inviata correttamente
+Thu Jan 13 17:49:21 2022 -- [THREAD 10]: Segnalato nuovo task in queue
+Thu Jan 13 17:49:21 2022 -- [THREAD 10]: Estratto dalla queue nuovo task da eseguire
+Thu Jan 13 17:49:21 2022 -- [THREAD 10]: Avvio del task da eseguire in corso...
+Thu Jan 13 17:49:21 2022 -- [THREAD 10]: Ascolto la richiesta del client
+Thu Jan 13 17:49:21 2022 -- [THREAD 10]: Richiesta di "openFile" da parte del client con fd:7
+Thu Jan 13 17:49:21 2022 -- [THREAD 10]: Tentativo da parte del client di fd:7 di "openFile" del file /mnt/c/Users/Simone/Desktop/Ciao.txt
+Thu Jan 13 17:49:21 2022 -- [THREAD 10]: "openFile" su /mnt/c/Users/Simone/Desktop/Ciao.txt del client con fd:7 con flags:O_CREATE | O_LOCK riuscita
+Thu Jan 13 17:49:21 2022 -- [THREAD 10]: Task terminato con successo
+Thu Jan 13 17:49:21 2022 -- [THREAD 10]: Nessun task trovato, mi metto in attesa
+Thu Jan 13 17:49:21 2022 -- [THREAD MANAGER]: Select: nuovi fd pronti in lettura...
+Thu Jan 13 17:49:21 2022 -- [THREAD MANAGER]: FD:4 pronto in lettura
+Thu Jan 13 17:49:21 2022 -- [THREAD MANAGER]: Pipe pronta in lettura: riabilitazione vecchi fd disabilitati
+Thu Jan 13 17:49:21 2022 -- [THREAD MANAGER]: Client con fd:7 riabilitato
+Thu Jan 13 17:49:21 2022 -- [THREAD MANAGER]: Select: nuovi fd pronti in lettura...
+Thu Jan 13 17:49:21 2022 -- [THREAD MANAGER]: FD:7 pronto in lettura
+Thu Jan 13 17:49:21 2022 -- [THREAD MANAGER]: Client con fd:7, invio task al pool di thread
+Thu Jan 13 17:49:21 2022 -- [THREAD MANAGER]: Richiesta di inserimento nuovo task
+Thu Jan 13 17:49:21 2022 -- [THREAD MANAGER]: Task inviato correttamente
+Thu Jan 13 17:49:21 2022 -- [THREAD MANAGER]: Client con fd:7, richiesta al pool di thread inviata correttamente
+Thu Jan 13 17:49:21 2022 -- [THREAD 4]: Segnalato nuovo task in queue
+Thu Jan 13 17:49:21 2022 -- [THREAD 4]: Estratto dalla queue nuovo task da eseguire
+Thu Jan 13 17:49:21 2022 -- [THREAD 4]: Avvio del task da eseguire in corso...
+Thu Jan 13 17:49:21 2022 -- [THREAD 4]: Ascolto la richiesta del client
+Thu Jan 13 17:49:21 2022 -- [THREAD 4]: Richiesta di "writeFile" da parte del client con fd:7
+Thu Jan 13 17:49:21 2022 -- [THREAD 4]: Tentativo di "writeFile" dal client fd:7 del file /mnt/c/Users/Simone/Desktop/Ciao.txt
+Thu Jan 13 17:49:21 2022 -- [THREAD 4]: "writeFile" dal client fd:7 del file /mnt/c/Users/Simone/Desktop/Ciao.txt - File vuoto aggiunto al server correttamente
+Thu Jan 13 17:49:21 2022 -- [THREAD 4]: "writeFile" dal client fd:7 del file /mnt/c/Users/Simone/Desktop/Ciao.txt - Scrivo il suo contenuto nel server
+Thu Jan 13 17:49:21 2022 -- [THREAD 4]: "writeFile" dal client fd:79451472 del file (null) - Contenuto aggiunto
+Thu Jan 13 17:49:21 2022 -- [THREAD 4]: "writeFile" dal client fd:79451472 del file (null) terminata con successo
+Thu Jan 13 17:49:21 2022 -- [THREAD 4]: Task terminato con successo
+Thu Jan 13 17:49:21 2022 -- [THREAD 4]: Nessun task trovato, mi metto in attesa
+Thu Jan 13 17:49:21 2022 -- [THREAD MANAGER]: Select: nuovi fd pronti in lettura...
+Thu Jan 13 17:49:21 2022 -- [THREAD MANAGER]: FD:4 pronto in lettura
+Thu Jan 13 17:49:21 2022 -- [THREAD MANAGER]: Pipe pronta in lettura: riabilitazione vecchi fd disabilitati
+Thu Jan 13 17:49:21 2022 -- [THREAD MANAGER]: Client con fd:7 riabilitato
+Thu Jan 13 17:49:21 2022 -- [THREAD MANAGER]: Select: nuovi fd pronti in lettura...
+Thu Jan 13 17:49:21 2022 -- [THREAD MANAGER]: FD:8 pronto in lettura
+Thu Jan 13 17:49:21 2022 -- [THREAD MANAGER]: Client con fd:8, invio task al pool di thread
+Thu Jan 13 17:49:21 2022 -- [THREAD MANAGER]: Richiesta di inserimento nuovo task
+Thu Jan 13 17:49:21 2022 -- [THREAD MANAGER]: Task inviato correttamente
+Thu Jan 13 17:49:21 2022 -- [THREAD MANAGER]: Client con fd:8, richiesta al pool di thread inviata correttamente
+Thu Jan 13 17:49:21 2022 -- [THREAD 6]: Segnalato nuovo task in queue
+Thu Jan 13 17:49:21 2022 -- [THREAD 6]: Estratto dalla queue nuovo task da eseguire
+Thu Jan 13 17:49:21 2022 -- [THREAD 6]: Avvio del task da eseguire in corso...
+Thu Jan 13 17:49:21 2022 -- [THREAD 6]: Ascolto la richiesta del client
+Thu Jan 13 17:49:21 2022 -- [THREAD 6]: Richiesta di "openFile" da parte del client con fd:8
+Thu Jan 13 17:49:21 2022 -- [THREAD 6]: Tentativo da parte del client di fd:8 di "openFile" del file /mnt/c/Users/Simone/Desktop/Ciao.txt
+Thu Jan 13 17:49:21 2022 -- [THREAD 6]: "openFile" su /mnt/c/Users/Simone/Desktop/Ciao.txt del client con fd:8 con flags:0 riuscita
+Thu Jan 13 17:49:21 2022 -- [THREAD 6]: Task terminato con successo
+Thu Jan 13 17:49:21 2022 -- [THREAD 6]: Nessun task trovato, mi metto in attesa
+Thu Jan 13 17:49:21 2022 -- [THREAD MANAGER]: Select: nuovi fd pronti in lettura...
+Thu Jan 13 17:49:21 2022 -- [THREAD MANAGER]: FD:4 pronto in lettura
+Thu Jan 13 17:49:21 2022 -- [THREAD MANAGER]: Pipe pronta in lettura: riabilitazione vecchi fd disabilitati
+Thu Jan 13 17:49:21 2022 -- [THREAD MANAGER]: Client con fd:8 riabilitato
+Thu Jan 13 17:49:21 2022 -- [THREAD MANAGER]: Select: nuovi fd pronti in lettura...
+Thu Jan 13 17:49:21 2022 -- [THREAD MANAGER]: FD:8 pronto in lettura
+Thu Jan 13 17:49:21 2022 -- [THREAD MANAGER]: Client con fd:8, invio task al pool di thread
+Thu Jan 13 17:49:21 2022 -- [THREAD MANAGER]: Richiesta di inserimento nuovo task
+Thu Jan 13 17:49:21 2022 -- [THREAD MANAGER]: Task inviato correttamente
+Thu Jan 13 17:49:21 2022 -- [THREAD MANAGER]: Client con fd:8, richiesta al pool di thread inviata correttamente
+Thu Jan 13 17:49:21 2022 -- [THREAD 8]: Segnalato nuovo task in queue
+Thu Jan 13 17:49:21 2022 -- [THREAD 8]: Estratto dalla queue nuovo task da eseguire
+Thu Jan 13 17:49:21 2022 -- [THREAD 8]: Avvio del task da eseguire in corso...
+Thu Jan 13 17:49:21 2022 -- [THREAD 8]: Ascolto la richiesta del client
+Thu Jan 13 17:49:21 2022 -- [THREAD 8]: Richiesta di "lockFile" da parte del client con fd:8
+Thu Jan 13 17:49:21 2022 -- [THREAD 8]: Tentativo di "lockFile" da parte del client con fd:8 sul file:/mnt/c/Users/Simone/Desktop/Ciao.txt
+Thu Jan 13 17:49:21 2022 -- [THREAD 8]: "lockFile" da parte del client con fd:8 sul file:/mnt/c/Users/Simone/Desktop/Ciao.txt - File già occuppato
+Thu Jan 13 17:49:21 2022 -- [THREAD 8]: Task terminato con successo
+Thu Jan 13 17:49:21 2022 -- [THREAD 8]: Nessun task trovato, mi metto in attesa
+Thu Jan 13 17:49:21 2022 -- [THREAD MANAGER]: Select: nuovi fd pronti in lettura...
+Thu Jan 13 17:49:21 2022 -- [THREAD MANAGER]: FD:4 pronto in lettura
+Thu Jan 13 17:49:21 2022 -- [THREAD MANAGER]: Pipe pronta in lettura: riabilitazione vecchi fd disabilitati
+Thu Jan 13 17:49:21 2022 -- [THREAD MANAGER]: Client con fd:8 riabilitato
+Thu Jan 13 17:49:41 2022 -- [THREAD MANAGER]: Select: nuovi fd pronti in lettura...
+Thu Jan 13 17:49:41 2022 -- [THREAD MANAGER]: FD:7 pronto in lettura
+Thu Jan 13 17:49:41 2022 -- [THREAD MANAGER]: Client con fd:7, invio task al pool di thread
+Thu Jan 13 17:49:41 2022 -- [THREAD MANAGER]: Richiesta di inserimento nuovo task
+Thu Jan 13 17:49:41 2022 -- [THREAD MANAGER]: Task inviato correttamente
+Thu Jan 13 17:49:41 2022 -- [THREAD MANAGER]: Client con fd:7, richiesta al pool di thread inviata correttamente
+Thu Jan 13 17:49:41 2022 -- [THREAD 13]: Segnalato nuovo task in queue
+Thu Jan 13 17:49:41 2022 -- [THREAD 13]: Estratto dalla queue nuovo task da eseguire
+Thu Jan 13 17:49:41 2022 -- [THREAD 13]: Avvio del task da eseguire in corso...
+Thu Jan 13 17:49:41 2022 -- [THREAD 13]: Ascolto la richiesta del client
+Thu Jan 13 17:49:41 2022 -- [THREAD 13]: Richiesta di "closeFile" da parte del client con fd:7
+Thu Jan 13 17:49:41 2022 -- [THREAD 13]: Tentativo di "closeFile" da parte del client con fd:7 sul file:/mnt/c/Users/Simone/Desktop/Ciao.txt
+Thu Jan 13 17:49:41 2022 -- [THREAD 13]: "closeFile" da parte del client con fd:7 sul file:/mnt/c/Users/Simone/Desktop/Ciao.txt riuscita
+Thu Jan 13 17:49:41 2022 -- [THREAD 13]: "closeFile" da parte del client con fd:7 sul file:/mnt/c/Users/Simone/Desktop/Ciao.txt - Concedo la lock al client con fd:109
+Thu Jan 13 17:49:41 2022 -- [THREAD 13]: Task terminato con successo
+Thu Jan 13 17:49:41 2022 -- [THREAD 13]: Nessun task trovato, mi metto in attesa
+Thu Jan 13 17:49:41 2022 -- [THREAD MANAGER]: Select: nuovi fd pronti in lettura...
+Thu Jan 13 17:49:41 2022 -- [THREAD MANAGER]: FD:4 pronto in lettura
+Thu Jan 13 17:49:41 2022 -- [THREAD MANAGER]: Pipe pronta in lettura: riabilitazione vecchi fd disabilitati
+Thu Jan 13 17:49:41 2022 -- [THREAD MANAGER]: Client con fd:7 riabilitato
+Thu Jan 13 17:49:41 2022 -- [THREAD MANAGER]: Select: nuovi fd pronti in lettura...
+Thu Jan 13 17:49:41 2022 -- [THREAD MANAGER]: FD:7 pronto in lettura
+Thu Jan 13 17:49:41 2022 -- [THREAD MANAGER]: Client con fd:7, invio task al pool di thread
+Thu Jan 13 17:49:41 2022 -- [THREAD MANAGER]: Richiesta di inserimento nuovo task
+Thu Jan 13 17:49:41 2022 -- [THREAD MANAGER]: Task inviato correttamente
+Thu Jan 13 17:49:41 2022 -- [THREAD MANAGER]: Client con fd:7, richiesta al pool di thread inviata correttamente
+Thu Jan 13 17:49:41 2022 -- [THREAD MANAGER]: FD:8 pronto in lettura
+Thu Jan 13 17:49:41 2022 -- [THREAD MANAGER]: Client con fd:8, invio task al pool di thread
+Thu Jan 13 17:49:41 2022 -- [THREAD MANAGER]: Richiesta di inserimento nuovo task
+Thu Jan 13 17:49:41 2022 -- [THREAD 2]: Segnalato nuovo task in queue
+Thu Jan 13 17:49:41 2022 -- [THREAD 2]: Estratto dalla queue nuovo task da eseguire
+Thu Jan 13 17:49:41 2022 -- [THREAD 2]: Avvio del task da eseguire in corso...
+Thu Jan 13 17:49:41 2022 -- [THREAD 2]: Ascolto la richiesta del client
+Thu Jan 13 17:49:41 2022 -- [THREAD 2]: Chiusura della connessione con il client
+Thu Jan 13 17:49:41 2022 -- [THREAD 2]: Task terminato con successo
+Thu Jan 13 17:49:41 2022 -- [THREAD 16]: Segnalato nuovo task in queue
+Thu Jan 13 17:49:41 2022 -- [THREAD MANAGER]: Task inviato correttamente
+Thu Jan 13 17:49:41 2022 -- [THREAD MANAGER]: Client con fd:8, richiesta al pool di thread inviata correttamente
+Thu Jan 13 17:49:41 2022 -- [THREAD 2]: Nessun task trovato, mi metto in attesa
+Thu Jan 13 17:49:41 2022 -- [THREAD 16]: Estratto dalla queue nuovo task da eseguire
+Thu Jan 13 17:49:41 2022 -- [THREAD 16]: Avvio del task da eseguire in corso...
+Thu Jan 13 17:49:41 2022 -- [THREAD 16]: Ascolto la richiesta del client
+Thu Jan 13 17:49:41 2022 -- [THREAD 16]: Chiusura della connessione con il client
+Thu Jan 13 17:49:41 2022 -- [THREAD 16]: Task terminato con successo
+Thu Jan 13 17:49:41 2022 -- [THREAD 16]: Nessun task trovato, mi metto in attesa
+Thu Jan 13 17:49:51 2022 -- [THREAD MANAGER]: Server in fase di spegnimento...
+Thu Jan 13 17:49:51 2022 -- [THREAD MANAGER]: Arresto forzato: richiesta di spegnimento immediato
+Thu Jan 13 17:49:51 2022 -- [THREAD MANAGER]:Arresto forzato; inizio procedura di hard-shutdown del pool
+Thu Jan 13 17:49:51 2022 -- [THREAD 16]: Segnalato nuovo task in queue
+Thu Jan 13 17:49:51 2022 -- [THREAD 16]: Estratto dalla queue nuovo task da eseguire
+Thu Jan 13 17:49:51 2022 -- [THREAD 16]: Avvio del task da eseguire in corso...
+Thu Jan 13 17:49:51 2022 -- [THREAD 16]: Task terminato con successo
+Thu Jan 13 17:49:51 2022 -- [THREAD 19]: Segnalato nuovo task in queue
+Thu Jan 13 17:49:51 2022 -- [THREAD 19]: Estratto dalla queue nuovo task da eseguire
+Thu Jan 13 17:49:51 2022 -- [THREAD 19]: Avvio del task da eseguire in corso...
+Thu Jan 13 17:49:51 2022 -- [THREAD 19]: Task terminato con successo
+Thu Jan 13 17:49:51 2022 -- [THREAD 5]: Segnalato nuovo task in queue
+Thu Jan 13 17:49:51 2022 -- [THREAD 5]: Estratto dalla queue nuovo task da eseguire
+Thu Jan 13 17:49:51 2022 -- [THREAD 5]: Avvio del task da eseguire in corso...
+Thu Jan 13 17:49:51 2022 -- [THREAD 5]: Task terminato con successo
+Thu Jan 13 17:49:51 2022 -- [THREAD 9]: Segnalato nuovo task in queue
+Thu Jan 13 17:49:51 2022 -- [THREAD 9]: Estratto dalla queue nuovo task da eseguire
+Thu Jan 13 17:49:51 2022 -- [THREAD 9]: Avvio del task da eseguire in corso...
+Thu Jan 13 17:49:51 2022 -- [THREAD 9]: Task terminato con successo
+Thu Jan 13 17:49:51 2022 -- [THREAD 11]: Segnalato nuovo task in queue
+Thu Jan 13 17:49:51 2022 -- [THREAD 11]: Estratto dalla queue nuovo task da eseguire
+Thu Jan 13 17:49:51 2022 -- [THREAD 11]: Avvio del task da eseguire in corso...
+Thu Jan 13 17:49:51 2022 -- [THREAD 11]: Task terminato con successo
+Thu Jan 13 17:49:51 2022 -- [THREAD 7]: Segnalato nuovo task in queue
+Thu Jan 13 17:49:51 2022 -- [THREAD 7]: Estratto dalla queue nuovo task da eseguire
+Thu Jan 13 17:49:51 2022 -- [THREAD 7]: Avvio del task da eseguire in corso...
+Thu Jan 13 17:49:51 2022 -- [THREAD 7]: Task terminato con successo
+Thu Jan 13 17:49:51 2022 -- [THREAD 20]: Segnalato nuovo task in queue
+Thu Jan 13 17:49:51 2022 -- [THREAD 20]: Estratto dalla queue nuovo task da eseguire
+Thu Jan 13 17:49:51 2022 -- [THREAD 20]: Avvio del task da eseguire in corso...
+Thu Jan 13 17:49:51 2022 -- [THREAD 20]: Task terminato con successo
+Thu Jan 13 17:49:51 2022 -- [THREAD 12]: Segnalato nuovo task in queue
+Thu Jan 13 17:49:51 2022 -- [THREAD 12]: Estratto dalla queue nuovo task da eseguire
+Thu Jan 13 17:49:51 2022 -- [THREAD 12]: Avvio del task da eseguire in corso...
+Thu Jan 13 17:49:51 2022 -- [THREAD 12]: Task terminato con successo
+Thu Jan 13 17:49:51 2022 -- [THREAD 18]: Segnalato nuovo task in queue
+Thu Jan 13 17:49:51 2022 -- [THREAD 18]: Estratto dalla queue nuovo task da eseguire
+Thu Jan 13 17:49:51 2022 -- [THREAD 18]: Avvio del task da eseguire in corso...
+Thu Jan 13 17:49:51 2022 -- [THREAD 18]: Task terminato con successo
+Thu Jan 13 17:49:51 2022 -- [THREAD 15]: Segnalato nuovo task in queue
+Thu Jan 13 17:49:51 2022 -- [THREAD 15]: Estratto dalla queue nuovo task da eseguire
+Thu Jan 13 17:49:51 2022 -- [THREAD 15]: Avvio del task da eseguire in corso...
+Thu Jan 13 17:49:51 2022 -- [THREAD 15]: Task terminato con successo
+Thu Jan 13 17:49:51 2022 -- [THREAD 3]: Segnalato nuovo task in queue
+Thu Jan 13 17:49:51 2022 -- [THREAD 3]: Estratto dalla queue nuovo task da eseguire
+Thu Jan 13 17:49:51 2022 -- [THREAD 3]: Avvio del task da eseguire in corso...
+Thu Jan 13 17:49:51 2022 -- [THREAD 3]: Task terminato con successo
+Thu Jan 13 17:49:51 2022 -- [THREAD 14]: Segnalato nuovo task in queue
+Thu Jan 13 17:49:51 2022 -- [THREAD 14]: Estratto dalla queue nuovo task da eseguire
+Thu Jan 13 17:49:51 2022 -- [THREAD 14]: Avvio del task da eseguire in corso...
+Thu Jan 13 17:49:51 2022 -- [THREAD 14]: Task terminato con successo
+Thu Jan 13 17:49:51 2022 -- [THREAD 1]: Segnalato nuovo task in queue
+Thu Jan 13 17:49:51 2022 -- [THREAD 1]: Estratto dalla queue nuovo task da eseguire
+Thu Jan 13 17:49:51 2022 -- [THREAD 1]: Avvio del task da eseguire in corso...
+Thu Jan 13 17:49:51 2022 -- [THREAD 1]: Task terminato con successo
+Thu Jan 13 17:49:51 2022 -- [THREAD 10]: Segnalato nuovo task in queue
+Thu Jan 13 17:49:51 2022 -- [THREAD 10]: Estratto dalla queue nuovo task da eseguire
+Thu Jan 13 17:49:51 2022 -- [THREAD 10]: Avvio del task da eseguire in corso...
+Thu Jan 13 17:49:51 2022 -- [THREAD 10]: Task terminato con successo
+Thu Jan 13 17:49:51 2022 -- [THREAD 4]: Segnalato nuovo task in queue
+Thu Jan 13 17:49:51 2022 -- [THREAD 4]: Estratto dalla queue nuovo task da eseguire
+Thu Jan 13 17:49:51 2022 -- [THREAD 4]: Avvio del task da eseguire in corso...
+Thu Jan 13 17:49:51 2022 -- [THREAD 4]: Task terminato con successo
+Thu Jan 13 17:49:51 2022 -- [THREAD 6]: Segnalato nuovo task in queue
+Thu Jan 13 17:49:51 2022 -- [THREAD 6]: Estratto dalla queue nuovo task da eseguire
+Thu Jan 13 17:49:51 2022 -- [THREAD 6]: Avvio del task da eseguire in corso...
+Thu Jan 13 17:49:51 2022 -- [THREAD 6]: Task terminato con successo
+Thu Jan 13 17:49:51 2022 -- [THREAD 8]: Segnalato nuovo task in queue
+Thu Jan 13 17:49:51 2022 -- [THREAD 8]: Estratto dalla queue nuovo task da eseguire
+Thu Jan 13 17:49:51 2022 -- [THREAD 8]: Avvio del task da eseguire in corso...
+Thu Jan 13 17:49:51 2022 -- [THREAD 8]: Task terminato con successo
+Thu Jan 13 17:49:51 2022 -- [THREAD 13]: Segnalato nuovo task in queue
+Thu Jan 13 17:49:51 2022 -- [THREAD 13]: Estratto dalla queue nuovo task da eseguire
+Thu Jan 13 17:49:51 2022 -- [THREAD 13]: Avvio del task da eseguire in corso...
+Thu Jan 13 17:49:51 2022 -- [THREAD 13]: Task terminato con successo
+Thu Jan 13 17:49:51 2022 -- [THREAD 2]: Segnalato nuovo task in queue
+Thu Jan 13 17:49:51 2022 -- [THREAD 2]: Estratto dalla queue nuovo task da eseguire
+Thu Jan 13 17:49:51 2022 -- [THREAD 2]: Avvio del task da eseguire in corso...
+Thu Jan 13 17:49:51 2022 -- [THREAD 2]: Task terminato con successo
+Thu Jan 13 17:49:51 2022 -- [THREAD 17]: Segnalato nuovo task in queue
+Thu Jan 13 17:49:51 2022 -- [THREAD 17]: Estratto dalla queue nuovo task da eseguire
+Thu Jan 13 17:49:51 2022 -- [THREAD 17]: Avvio del task da eseguire in corso...
+Thu Jan 13 17:49:51 2022 -- [THREAD 19]: arresto in corso
+Thu Jan 13 17:49:51 2022 -- [THREAD 17]: Task terminato con successo
+Thu Jan 13 17:49:51 2022 -- [THREAD 7]: arresto in corso
+Thu Jan 13 17:49:51 2022 -- [THREAD 5]: arresto in corso
+Thu Jan 13 17:49:51 2022 -- [THREAD 3]: arresto in corso
+Thu Jan 13 17:49:51 2022 -- [THREAD 1]: arresto in corso
+Thu Jan 13 17:49:51 2022 -- [THREAD 6]: arresto in corso
+Thu Jan 13 17:49:51 2022 -- [THREAD 16]: arresto in corso
+Thu Jan 13 17:49:51 2022 -- [THREAD 2]: arresto in corso
+Thu Jan 13 17:49:51 2022 -- [THREAD 12]: arresto in corso
+Thu Jan 13 17:49:51 2022 -- [THREAD 18]: arresto in corso
+Thu Jan 13 17:49:51 2022 -- [THREAD 15]: arresto in corso
+Thu Jan 13 17:49:51 2022 -- [THREAD 9]: arresto in corso
+Thu Jan 13 17:49:51 2022 -- [THREAD 14]: arresto in corso
+Thu Jan 13 17:49:51 2022 -- [THREAD 10]: arresto in corso
+Thu Jan 13 17:49:51 2022 -- [THREAD 11]: arresto in corso
+Thu Jan 13 17:49:51 2022 -- [THREAD 4]: arresto in corso
+Thu Jan 13 17:49:51 2022 -- [THREAD 17]: arresto in corso
+Thu Jan 13 17:49:51 2022 -- [THREAD 13]: arresto in corso
+Thu Jan 13 17:49:51 2022 -- [THREAD 8]: arresto in corso
+Thu Jan 13 17:49:51 2022 -- [THREAD 20]: arresto in corso
+Thu Jan 13 17:49:51 2022 -- [THREAD MANAGER]: Pool di thread fermato correttamente

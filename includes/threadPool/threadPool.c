@@ -67,6 +67,15 @@ typedef struct {
     }
 
 
+#define TRACE_ON_LOG(DELETE, RET_VALUE, TXT, ...)                   \
+    if(traceOnLog(log, (TXT), __VA_ARGS__) == -1) {                 \
+        if(!(DELETE)) return (RET_VALUE);                           \
+        else {                                                      \
+            FREE_POOL_THREAD()                                      \
+            return (RET_VALUE);                                     \
+        }                                                           \
+    }
+
 /**
  * @brief               Funzione per l'arresto dei thread worker del pool
  * @fun                 stopTasking
@@ -74,7 +83,6 @@ typedef struct {
  * @return              NULL sempre
  */
 static void* stopTasking(unsigned int a, void *b) {
-    printf("Thread stop\n\n");
     return NULL;
 }
 
@@ -89,6 +97,7 @@ static void* stopTasking(unsigned int a, void *b) {
 static void* start_routine(void *argv) {
     /** Variabili **/
     int error = 0, *status = NULL;
+    char errorMSG[MAX_BUFFER_LEN];
     Threads_Arg *castedArg = NULL;
     threadPool *pool = NULL;
     serverLogFile *log = NULL;
@@ -105,37 +114,19 @@ static void* start_routine(void *argv) {
     free(argv);
 
     /** Lavoro iterativo del thread **/
-    if((status = (int *) malloc(sizeof(int))) == NULL) {
-        return NULL;
-    }
-    if(traceOnLog(log, "Thread n°%d avviato\n", numeroDelThread) == -1) {
-        *status = errno;
-        return status;
-    }
+    TRACE_ON_LOG(0, &errno, "[THREAD %d]: thread avviato correttamente\n", numeroDelThread)
     LOCK_POOL(NULL)
     do {
         /** Se la lista e' vuota mi metto in attesa */
         while(pool->isEmpty) {
             (pool->numeroDiThreadAttivi)--;
-            if(traceOnLog(log, "Thread n°%d in attesa di un task da eseguire\n", numeroDelThread) == -1) {
-                *status = errno;
-                return status;
-            }
+            TRACE_ON_LOG(0, &errno, "[THREAD %d]: Nessun task trovato, mi metto in attesa\n", numeroDelThread)
             if((error = pthread_cond_wait((pool->emptyCondVar), (pool->taskQueueMutex))) != 0) {
-                *status = errno;
-                return status;
+                return (void *) &errno;
             }
-            if(traceOnLog(log, "Thread n°%d: tentativo di prendere un task\n", numeroDelThread) == -1) {
-                *status = errno;
-                return status;
-            }
-            if(traceOnLog(log, "Thread n°%d risvegliato\n", numeroDelThread) == -1) {
-                *status = errno;
-                return status;
-            }
+            TRACE_ON_LOG(0, &errno, "[THREAD %d]: Segnalato nuovo task in queue\n", numeroDelThread)
             (pool->numeroDiThreadAttivi)++;
         }
-
 
         /** Estraggo il task dalla coda e lo eseguo **/
         if((uncastedTask = deleteFirstElement(&(pool->taskQueue))) == NULL) {
@@ -145,32 +136,29 @@ static void* start_routine(void *argv) {
         (pool->numeroTaskInCoda)--;
         if(pool->taskQueue == NULL) pool->isEmpty = 1;
         UNLOCK_POOL(NULL)
-        if(traceOnLog(log, "Thread n°%d: esecuzione nuovo Task\n", numeroDelThread) == -1) {
-            *status = errno;
-            return status;
-        }
+        TRACE_ON_LOG(0, &errno, "[THREAD %d]: Estratto dalla queue nuovo task da eseguire\n", numeroDelThread)
         t = (Task *) uncastedTask;
         work = t->to_do;
-        if(traceOnLog(log, "Thread n°%d: avvio task in corso\n", numeroDelThread) == -1) {
-            *status = errno;
-            return status;
-        }
+        TRACE_ON_LOG(0, &errno, "[THREAD %d]: Avvio del task da eseguire in corso...\n", numeroDelThread)
         if(work(numeroDelThread, t->argv) != NULL) {
-            *status = errno;
-            //return status;
+            if(errno == ECOMM) {
+                TRACE_ON_LOG(0, &errno, "[THREAD %d]: Chiusura della connessione con il client\n", numeroDelThread)
+            } else {
+                if(strerror_r(errno, errorMSG, MAX_BUFFER_LEN) != 0) {
+                    return &errno;
+                }
+                TRACE_ON_LOG(0, &errno, "[THREAD %d]: Stop improvviso del task - Errore:%s\n", numeroDelThread, errorMSG)
+            }
         }
         pool->free_task(uncastedTask);
+        TRACE_ON_LOG(0, &errno, "[THREAD %d]: Task terminato con successo\n", numeroDelThread)
         LOCK_POOL(NULL)
     } while((!(pool->shutdown)) || ((pool->taskQueue != NULL) && (!pool->hardST)));
     UNLOCK_POOL(NULL)
 
 
     /** Arresto del thread **/
-
-    if(traceOnLog(log, "Thread n°%d: arresto in corso\n", numeroDelThread) == -1) {
-        *status = errno;
-        return status;
-    }
+    TRACE_ON_LOG(0, &errno, "[THREAD %d]: arresto in corso\n", numeroDelThread)
     free(status);
     return NULL;
 }
@@ -182,65 +170,65 @@ static void* start_routine(void *argv) {
  * @param argv              Argomenti del thread worker
  * @return                  (NULL) in caso di successo; altrimenti ritorna il numero dell'errore
  */
-/*static void* threadHelper(void *argv) {
-    *//** Variabili **//*
-    int error = 0, *status = NULL;
-    Threads_Arg *castedArg = NULL;
-    threadPool *pool = NULL;
-    serverLogFile *log = NULL;
-    unsigned int numeroDelThread = -1;
-    void *uncastedTask = NULL;
-    Task *t = NULL;
-    Task_Fun work = NULL;
-
-    *//** Cast degli argomenti **//*
-    castedArg = (Threads_Arg *) argv;
-    pool = castedArg->pool;
-    numeroDelThread = castedArg->idThread;
-    log = castedArg->log;
-    free(argv);
-
-    *//** Lavoro iterativo del thread **//*
-    if((status = (int *) malloc(sizeof(int))) == NULL) {
-        return NULL;
-    }
-    if(traceOnLog(log, "Thread n°%d avviato\n", numeroDelThread) == -1) {
-        *status = errno;
-        return status;
-    }
-    LOCK_POOL(NULL)
-    *//** Estraggo il task dalla coda e lo eseguo **//*
-    if((uncastedTask = deleteFirstElement(&(pool->taskQueue))) == NULL) {
-        UNLOCK_POOL(NULL)
-        return NULL;
-    }
-    (pool->numeroTaskInCoda)--;
-    UNLOCK_POOL(NULL)
-    if(traceOnLog(log, "Thread n°%d: esecuzione nuovo Task\n", numeroDelThread) == -1) {
-        *status = errno;
-        return status;
-    }
-    t = (Task *) uncastedTask;
-    work = t->to_do;
-    if(traceOnLog(log, "Thread n°%d: avvio task in corso\n", numeroDelThread) == -1) {
-        *status = errno;
-        return status;
-    }
-    if(work(numeroDelThread, t->argv) != NULL) {
-        *status = errno;
-        return status;
-    }
-    free(uncastedTask);
-
-
-    *//** Arresto del thread **//*
-    if(traceOnLog(log, "Thread n°%d: arresto in corso\n", numeroDelThread) == -1) {
-        *status = errno;
-        return status;
-    }
-    free(status);
-    return NULL;
-}*/
+//static void* threadHelper(void *argv) {
+//    /** Variabili **/
+//    int error = 0, *status = NULL;
+//    Threads_Arg *castedArg = NULL;
+//    threadPool *pool = NULL;
+//    serverLogFile *log = NULL;
+//    unsigned int numeroDelThread = -1;
+//    void *uncastedTask = NULL;
+//    Task *t = NULL;
+//    Task_Fun work = NULL;
+//
+//    /** Cast degli argomenti **/
+//    castedArg = (Threads_Arg *) argv;
+//    pool = castedArg->pool;
+//    numeroDelThread = castedArg->idThread;
+//    log = castedArg->log;
+//    free(argv);
+//
+//    /** Lavoro iterativo del thread **/
+//    if((status = (int *) malloc(sizeof(int))) == NULL) {
+//        return NULL;
+//    }
+//    if(traceOnLog(log, "Thread n°%d avviato\n", numeroDelThread) == -1) {
+//        *status = errno;
+//        return status;
+//    }
+//    LOCK_POOL(NULL)
+//    /** Estraggo il task dalla coda e lo eseguo **/
+//    if((uncastedTask = deleteFirstElement(&(pool->taskQueue))) == NULL) {
+//        UNLOCK_POOL(NULL)
+//        return NULL;
+//    }
+//    (pool->numeroTaskInCoda)--;
+//    UNLOCK_POOL(NULL)
+//    if(traceOnLog(log, "Thread n°%d: esecuzione nuovo Task\n", numeroDelThread) == -1) {
+//        *status = errno;
+//        return status;
+//    }
+//    t = (Task *) uncastedTask;
+//    work = t->to_do;
+//    if(traceOnLog(log, "Thread n°%d: avvio task in corso\n", numeroDelThread) == -1) {
+//        *status = errno;
+//        return status;
+//    }
+//    if(work(numeroDelThread, t->argv) != NULL) {
+//        *status = errno;
+//        return status;
+//    }
+//    free(uncastedTask);
+//
+//
+//    /** Arresto del thread **/
+//    if(traceOnLog(log, "Thread n°%d: arresto in corso\n", numeroDelThread) == -1) {
+//        *status = errno;
+//        return status;
+//    }
+//    free(status);
+//    return NULL;
+//}
 
 
 /**
@@ -261,10 +249,7 @@ threadPool* startThreadPool(unsigned int numeroThread, void (*free_task)(void *)
     if(free_task == NULL) { errno = EINVAL; return NULL; }
 
     /** Alloco la struttura **/
-    if(traceOnLog(log, "Avvio del pool di %d thread\n", numeroThread) == -1) {
-        FREE_POOL_THREAD()
-        return NULL;
-    }
+    TRACE_ON_LOG(1, NULL, "[THREAD MANAGER]: Avvio del pool di %d thread\n", numeroThread)
     if((pool = (threadPool *) malloc(sizeof(threadPool))) == NULL) return NULL;
     memset(pool, 0, sizeof(threadPool));
     pool->log = log;
@@ -316,10 +301,7 @@ threadPool* startThreadPool(unsigned int numeroThread, void (*free_task)(void *)
     free(arg);
     arg = NULL;
     UNLOCK_POOL(NULL)
-    if(traceOnLog(log, "Pool di thread avviato\n", numeroThread) == -1) {
-        FREE_POOL_THREAD()
-        return NULL;
-    }
+    TRACE_ON_LOG(1, NULL, "[THREAD MANAGER]: Pool di thread avviato\n", numeroThread)
 
 
     return pool;
@@ -336,12 +318,15 @@ threadPool* startThreadPool(unsigned int numeroThread, void (*free_task)(void *)
 int pushTask(threadPool *pool, Task *task) {
     /* Variabili */
     int error = 0;
+    serverLogFile *log = NULL;
 
     /* Controllo parametri */
     if(pool == NULL) { errno = EINVAL; return -1; }
     if(task == NULL) { errno = EINVAL; return -1; }
 
     /* Prendo il controllo della coda e ci aggiungo il task da eseguire */
+    log = pool->log;
+    TRACE_ON_LOG(0, errno, "[THREAD MANAGER]: Richiesta di inserimento nuovo task\n", NULL)
     LOCK_POOL(-1)
     if((pool->taskQueue = insertIntoQueue((pool->taskQueue), task, sizeof(Task))) == NULL) {
         return errno;
@@ -354,6 +339,7 @@ int pushTask(threadPool *pool, Task *task) {
         }
     }
     UNLOCK_POOL(-1)
+    TRACE_ON_LOG(0, errno, "[THREAD MANAGER]: Task inviato correttamente\n", NULL)
 
     return 0;
 }
@@ -371,35 +357,33 @@ int stopThreadPool(threadPool *pool, int hardShutdown) {
     Task *endTask = NULL;
     int index = -1, *status = NULL;
     int error = 0;
+    serverLogFile *log = NULL;
 
     /** Controllo parametri **/
     if((hardShutdown < 0) || (hardShutdown > 1)) { errno = EINVAL; return -1; }
 
     /** Avvio fase di spegnimento **/
+    log = pool->log;
     LOCK_POOL(-1)
     if(hardShutdown) {
         pool->hardST = 1;
         destroyQueue(&(pool->taskQueue), pool->free_task);
         pool->taskQueue = NULL;
-        if(traceOnLog(pool->log, "Arresto forzato del pool di thread: cancellazione dei task non ancora eseguiti\n") == -1) {
-            return -1;
-        }
+        TRACE_ON_LOG(0, -1, "[THREAD MANAGER]:Arresto forzato; inizio procedura di hard-shutdown del pool\n", NULL)
+    } else {
+        TRACE_ON_LOG(0, -1, "[THREAD MANAGER]: Arresto soft del pool di thread; invio messaggio di arresto\n", NULL)
     }
     if((error = pthread_cond_broadcast(pool->emptyCondVar)) != 0) {
         return -1;
     }
     if((endTask = (Task *) malloc(sizeof(Task))) == NULL) return -1;
     while(++index < (pool->numeroThread)) {
-
         (endTask)->argv = NULL;
         (endTask)->to_do = stopTasking;
         if((pool->taskQueue = insertIntoQueue(pool->taskQueue, endTask, sizeof(Task))) == NULL) {
             return -1;
         }
         (pool->numeroTaskInCoda)++;
-    }
-    if(traceOnLog(pool->log, "Invio messaggio di arresto ai thread worker\n") == -1) {
-        return -1;
     }
     free(endTask);
     pool->isEmpty = 0;
@@ -413,9 +397,7 @@ int stopThreadPool(threadPool *pool, int hardShutdown) {
         }
         free(status);
     }
-    if(traceOnLog(pool->log, "Pool di thread fermato correttamente\n") == -1) {
-        return -1;
-    }
+    TRACE_ON_LOG(0, -1, "[THREAD MANAGER]: Pool di thread fermato correttamente\n", NULL)
     FREE_POOL_THREAD()
 
     return 0;

@@ -11,6 +11,7 @@
 
     #define MAX_STRING_TIME 26
 
+    #define _POSIX_C_SOURCE 2001112L
     #include <stdlib.h>
     #include <stdio.h>
     #include <string.h>

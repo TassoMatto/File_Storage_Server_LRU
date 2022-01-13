@@ -140,6 +140,9 @@
     int openFileOnCache(LRU_Memory *cache, const char *pathname, int openFD);
 
 
+    int closeFileOnCache(LRU_Memory *cache, const char *pathname, int closeFD);
+
+
     /**
      * @brief                   Creo la tabella che conterranno i file vuoti
      *                          non ancora scritti e salvati nella cache
@@ -163,7 +166,7 @@
      * @return              Ritorna i file espulsi in seguito a memory miss oppure NULL; in caso di errore nell'aggiunta del file
      *                      viene settato errno
      */
-    myFile** addFileOnCache(LRU_Memory *, Pre_Inserimento *, const char *, int);
+    myFile** addFileOnCache(LRU_Memory *, Pre_Inserimento *, const char *, int, int);
 
 
     /**
@@ -179,7 +182,7 @@
     * @fun                         appendFile
     * @return                      Ritorna gli eventuali file espulsi; in caso di errore valutare se si setta errno
     */
-    myFile** appendFile(LRU_Memory *, const char *, void *, ssize_t);
+    myFile** appendFile(LRU_Memory *, const char *, void *, size_t);
 
 
     /**
@@ -188,6 +191,9 @@
      * @return                  Ritorna la dimensione del buffer; (-1) altrimenti [setta errno]
      */
     size_t readFileOnCache(LRU_Memory *, const char *, void **);
+
+
+    myFile **readsRandFiles(LRU_Memory *, int);
 
 
     /**
