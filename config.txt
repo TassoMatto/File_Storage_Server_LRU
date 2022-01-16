@@ -3,7 +3,7 @@
 #
 
 #   Numero di Thread Worker da attivare
-numeroThreadWorker=20
+numeroThreadWorker=4
 
 #   Memoria Max
 maxMB=1200

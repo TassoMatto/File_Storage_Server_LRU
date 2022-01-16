@@ -42,13 +42,13 @@ Queue* insertIntoQueue(Queue *q, void *data, size_t size) {
 
 /**
  * @brief               Cerca un elemento nella coda
- * @fun                 searchElement
+ * @fun                 elementExist
  * @param q             Coda su cui cercare l'elemento
  * @param data          Elemento da comparare per cercare l'elemento
  * @param fun           Funzione per comparare gli elementi
  * @return              (1) se l'elemento e' stato trovato, (0) se non ho trovato niente; (-1) [setta errno]
  */
-int searchElement(Queue *q, void *data, Compare_Fun fun) {
+int elementExist(Queue *q, void *data, Compare_Fun fun) {
     /** Controllo parametri **/
     if(q == NULL) { errno = EINVAL; return -1; }
     if(data == NULL) { errno = EINVAL; return -1; }

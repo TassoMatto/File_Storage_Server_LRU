@@ -51,7 +51,7 @@
     Queue* insertIntoQueue(Queue *, void *, size_t);
 
 
-    int searchElement(Queue *, void *, Compare_Fun);
+    int elementExist(Queue *, void *, Compare_Fun);
 
 
     /**

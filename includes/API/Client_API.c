@@ -61,36 +61,42 @@ static char* abs_path(const char *pathname) {
     /** Variabili **/
     char *abs_p = NULL, *name = NULL, *old_cwd = NULL, *copy = NULL;
 
-    /** Controllo variabili **/
-    if(pathname == NULL) { errno = EINVAL; return NULL; }
-
     /** Calcolo il pathname assoluto **/
     if((abs_p = (char *) calloc(MAX_PATHNAME, sizeof(char))) == NULL) {
         return NULL;
     }
     if((copy = (char *) calloc(strnlen(pathname, MAX_PATHNAME)+1, sizeof(char))) == NULL) {
+        free(abs_p);
         return NULL;
     }
     if((old_cwd = (char *) calloc(MAX_PATHNAME, sizeof(char))) == NULL) {
+        free(abs_p);
+        free(copy);
         return NULL;
     }
     strncpy(copy, pathname, strnlen(pathname, MAX_PATHNAME)+1);
     if(getcwd(old_cwd, MAX_PATHNAME) == NULL) {
         free(abs_p);
+        free(copy);
         return NULL;
     }
     name = strrchr(copy, '/');
     if(name != NULL) name[0] = '\0';
     if(chdir(copy) == -1) {
+        free(abs_p);
+        free(copy);
         return NULL;
     }
     if(getcwd(abs_p, MAX_PATHNAME) == NULL) {
         free(abs_p);
+        free(copy);
         return NULL;
     }
     strncat(abs_p, "/", 2);
     strncat(abs_p, (name == NULL) ? pathname : (name+1), strnlen((name == NULL) ? pathname : (name+1), MAX_PATHNAME));
     if(chdir(old_cwd) == -1) {
+        free(abs_p);
+        free(copy);
         return NULL;
     }
 
@@ -108,37 +114,37 @@ static char* abs_path(const char *pathname) {
  * @param size              Dimensione del file da leggere
  * @return                  In caso di successo ritorna (0); (-1) altrimenti [setta errno]
  */
-static int readFileFromDisk(const char *pathname, void **buf, size_t *size) {
-    /** Variabili **/
-    FILE *readF = NULL;
-    struct stat checkFile;
-    size_t readBytes = -1;
-
-    /** Controllo parametri **/
-    if(pathname == NULL) { errno = EINVAL; return -1; }
-    if(size == NULL) { errno = EINVAL; return -1; }
-
-    /** Controllo che il file esista e lo leggo **/
-    if(stat(pathname, &checkFile) == -1) { return -1; }
-    if(!S_ISREG(checkFile.st_mode)) { errno = ENOENT; return -1; }
-    if((readF = fopen(pathname, "r")) == NULL) { return -1; }
-    if((*buf = malloc(checkFile.st_size)) == NULL) { return -1; }
-    while(!feof(readF)) {
-        readBytes = fread(*buf, checkFile.st_size, 1, readF);
-        if(readBytes == 0 && ferror(readF)) {
-            printf("NOOO");
-            errno = ferror(readF);
-            return -1;
-        }
-    }
-    if(fclose(readF) != 0) {
-        free(*buf);
-        return -1;
-    }
-
-    *size = checkFile.st_size;
-    return 0;
-}
+//static int readFileFromDisk(const char *pathname, void **buf, size_t *size) {
+//    /** Variabili **/
+//    FILE *readF = NULL;
+//    struct stat checkFile;
+//    size_t readBytes = -1;
+//
+//    /** Controllo parametri **/
+//    if(pathname == NULL) { errno = EINVAL; return -1; }
+//    if(size == NULL) { errno = EINVAL; return -1; }
+//
+//    /** Controllo che il file esista e lo leggo **/
+//    if(stat(pathname, &checkFile) == -1) { return -1; }
+//    if(!S_ISREG(checkFile.st_mode)) { errno = ENOENT; return -1; }
+//    if((readF = fopen(pathname, "r")) == NULL) { return -1; }
+//    if((*buf = malloc(checkFile.st_size)) == NULL) { return -1; }
+//    while(!feof(readF)) {
+//        readBytes = fread(*buf, checkFile.st_size, 1, readF);
+//        if(readBytes == 0 && ferror(readF)) {
+//            printf("NOOO");
+//            errno = ferror(readF);
+//            return -1;
+//        }
+//    }
+//    if(fclose(readF) != 0) {
+//        free(*buf);
+//        return -1;
+//    }
+//
+//    *size = checkFile.st_size;
+//    return 0;
+//}
 
 
 /**
@@ -216,19 +222,32 @@ int openConnection(const char *sockname, int msec, const struct timespec abstime
 
     /** Tentativo di connessione al server **/
     if((status = (int *) malloc(sizeof(int))) == NULL) return -1;
-    if((fd_server = socket(AF_UNIX, SOCK_STREAM, 0)) == -1) return -1;
+    if((fd_server = socket(AF_UNIX, SOCK_STREAM, 0)) == -1) {
+        free(status);
+        return -1;
+    }
     strncpy(sock_addr.sun_path, sockname, strnlen(sockname, MAX_PATHNAME)+1);
     sock_addr.sun_family = AF_UNIX;
     arg.stop = &stop;
     arg.timer = abstime;
     memset(&repeat, 0, sizeof(struct timespec)), repeat.tv_nsec = msec;
-    if((timer = (pthread_t *) malloc(sizeof(pthread_t))) == NULL) return -1;
+    if((timer = (pthread_t *) malloc(sizeof(pthread_t))) == NULL) {
+        free(status);
+        return -1;
+    }
     if((error = pthread_create(timer, NULL, timeout, (void *) &arg)) != 0) {
+        free(timer);
+        free(status);
         errno = error;
         return -1;
     }
     while((!stop) && ((connectRes = connect(fd_server, (struct sockaddr *) &sock_addr, sizeof(sock_addr))) == -1)) {
-        nanosleep(&repeat, NULL);
+        if(nanosleep(&repeat, NULL) == -1) {
+            pthread_join(*timer, NULL);
+            free(timer);
+            free(status);
+            return -1;
+        }
     }
 
     /** Termino il tentativo e riporto il risultato al client **/
@@ -237,11 +256,15 @@ int openConnection(const char *sockname, int msec, const struct timespec abstime
         if(status == NULL) errno = error;
         else errno = *status;
         free(timer);
+        free(status);
         return -1;
     }
     free(timer);
+    free(status);
     if(connectRes == -1) { errno = ETIMEDOUT; return -1; }
-    else { strncpy(socketname, sockname, strnlen(sockname, MAX_PATHNAME)); return 0; }
+
+    strncpy(socketname, sockname, strnlen(sockname, MAX_PATHNAME));
+    return 0;
 }
 
 
@@ -475,41 +498,6 @@ int writeFile(const char *pathname, const char *dirname) {
         }
     }
     printf("rwsult2222: %d\n", *result);
-    if(receiveMSG(fd_server, (void **) &result, NULL) <= 0) {
-        return -1;
-    }
-    if(*result != 0) {
-        errno = *result;
-        return -1;
-    }
-    printf("33332: %d\n", *result);
-    /** Se tutto ok scrivo il contenuto del file **/
-    if(readFileFromDisk(pathname, &buf, &dimBuf) == -1) {
-        return -1;
-    }
-    printf("Mando\n");
-    if(sendMSG(fd_server, (void *) buf, dimBuf) <= 0) {
-        return -1;
-    }
-    if(receiveMSG(fd_server, (void **) &result, NULL) <= 0) {
-        return -1;
-    }
-    printf("aaa");
-    while(*result != 0) {
-        if(receiveMSG(fd_server, (void **) &fileToWrite, NULL) <= 0) {
-            return -1;
-        }
-        if(receiveMSG(fd_server, &buf, &dimBuf) <= 0) {
-            return -1;
-        }
-        if((dirname != NULL) && (writeFileIntoDisk(fileToWrite, dirname, buf, dimBuf) == -1)) {
-            return -1;
-        }
-        if(receiveMSG(fd_server, (void **) &result, NULL) <= 0) {
-            return -1;
-        }
-    }
-
     if(receiveMSG(fd_server, (void **) &result, NULL) <= 0) {
         return -1;
     }

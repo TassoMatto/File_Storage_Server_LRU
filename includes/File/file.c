@@ -3,6 +3,7 @@
  * @brief               Gestione di un file in memoria virtuale
  * @author              Simone Tassotti
  * @date                28/12/2021
+ * @finish              15/01/2022
  */
 
 
@@ -10,16 +11,23 @@
 
 
 /**
- * @brief           Funzione di confronto tra FD per il confronto nella coda
+ * @brief           Funzione di confronto per cercare elementi nella coda
  * @fun             compare_fd
  * @param v1        Primo FD da confrontare
  * @param v2        Secondo FD da confrontare
- * @return          (1) se corrispondono; (0) altrimenti
+ * @return          (1) Corrispondono
+ *                  (0) Non Corrispondono
  */
 static int compare_fd(const void *v1, const void *v2) {
-    int fd1 = *(int *) v1;
-    int fd2 = *(int *) v2;
+    /** Variabili **/
+    int fd1 = -1;
+    int fd2 = -1;
 
+    /** Cast **/
+    fd1 = *(int *) v1;
+    fd2 = *(int *) v2;
+
+    /** Risultato **/
     return fd1==fd2;
 }
 
@@ -29,23 +37,27 @@ static int compare_fd(const void *v1, const void *v2) {
  * @fun                 updateTime
  * @param file          File su cui aggiornare il tempo di ultimo utilizzo
  */
-void updateTime(myFile *file) {
+static void updateTime(myFile *file) {
+    /** Variabili **/
     struct timeval timing;
-    if(file != NULL)
-    {
-        if(gettimeofday(&timing, NULL) == -1)
-            memcpy(&(file->time), &timing, sizeof(struct timeval));
+
+    /** Aggiorno il tempo del file **/
+    if(gettimeofday(&timing, NULL) == -1) {
+        memcpy(&(file->time), &timing, sizeof(struct timeval));
     }
 }
 
 
 /**
- * @brief                               Crea la struttura del file
+ * @brief                               Crea un file di tipo 'pathname' il quale può essere
+ *                                      aperto da al più 'maxUtentiConnessiAlFile', accedendovi
+ *                                      in mutua esclusione (se allocata) con 'lockAccessFile'
  * @fun                                 createFile
  * @param pathname                      Pathname del file da creare
  * @param maxUtentiConnessiAlFile       Numero massimo di utenti che si puo' aprire il file
- * @param lockAccessFile                Variabile per l'accesso esterno in mutua esclusione
- * @return                              Ritorna il file; in caso di errore ritorna NULL [setta errno]
+ * @param lockAccessFile                Variabile per l'accesso in mutua esclusione
+ * @return                              Ritorna la struttura del file tutta impostata
+ *                                      In caso di errore ritorna NULL e setta errno
  */
 myFile* createFile(const char *pathname, unsigned int maxUtentiConnessiAlFile, pthread_mutex_t *lockAccessFile) {
     /** Variabili **/
@@ -56,13 +68,22 @@ myFile* createFile(const char *pathname, unsigned int maxUtentiConnessiAlFile, p
     if(maxUtentiConnessiAlFile == 0) { errno = EINVAL; return NULL; }
 
     /** Creo il file **/
-    if((file = (myFile *) malloc(sizeof(myFile))) == NULL) { return NULL; }
+    if((file = (myFile *) malloc(sizeof(myFile))) == NULL) {
+        return NULL;
+    }
     memset(file, 0, sizeof(myFile));
-    file->utentiLocked = NULL;
-    if((file->pathname = (char *) calloc(strnlen(pathname, MAX_PATHNAME)+1, sizeof(char))) == NULL) { free(file); return NULL; }
+    if((file->pathname = (char *) calloc(strnlen(pathname, MAX_PATHNAME)+1, sizeof(char))) == NULL) {
+        free(file);
+        return NULL;
+    }
     strncpy(file->pathname, pathname, strnlen(pathname, MAX_PATHNAME)+1);
-    if(lockAccessFile != NULL) { file->lockAccessFile = lockAccessFile; }
-    if((file->utentiConnessi =  (int *) calloc(maxUtentiConnessiAlFile, sizeof(unsigned int))) == NULL) { free(file->pathname); free(file); return NULL; }
+    if(lockAccessFile != NULL) {
+        file->lockAccessFile = lockAccessFile;
+    }
+    if((file->utentiConnessi =  (int *) calloc(maxUtentiConnessiAlFile, sizeof(unsigned int))) == NULL) {
+        free(file->pathname);
+        free(file); return NULL;
+    }
     memset(file->utentiConnessi, -1, maxUtentiConnessiAlFile*sizeof(unsigned int));
     file->maxUtentiConnessiAlFile = maxUtentiConnessiAlFile;
     file->utenteLock = -1;
@@ -73,12 +94,14 @@ myFile* createFile(const char *pathname, unsigned int maxUtentiConnessiAlFile, p
 
 
 /**
- * @brief                       Aggiorna il contenuto di un file
+ * @brief                       Aggiorna il contenuto di 'file' aggiungendo in append 'toAdd'
+ *                              di dimensione 'sizeToAdd'
  * @fun                         addContentToFile
  * @param file                  File da aggiornare
  * @param toAdd                 Buffer con cui aggiornare il file
  * @param sizeToAdd             Dimensione del buffer
- * @return                      Ritorna la nuova dimensione del file; altrimenti ritorna -1 [setta errno]
+ * @return                      Ritorna la dimensione finale del file con aggiunto il contenuto
+ *                              In caso di errore ritorna NULL e setta errno
  */
 size_t addContentToFile(myFile *file, void *toAdd, size_t sizeToAdd) {
     /** Variabili **/
@@ -90,7 +113,9 @@ size_t addContentToFile(myFile *file, void *toAdd, size_t sizeToAdd) {
     if(sizeToAdd <= 0) { errno = EINVAL; return -1; }
 
     /** Aggiungo il contenuto al file **/
-    if((copyBuffer = malloc(sizeToAdd+file->size)) == NULL) { return -1; }
+    if((copyBuffer = malloc(sizeToAdd+file->size)) == NULL) {
+        return -1;
+    }
     memcpy(copyBuffer, file->buffer, file->size);
     memcpy(copyBuffer+file->size, toAdd, sizeToAdd);
     free(file->buffer);
@@ -103,11 +128,12 @@ size_t addContentToFile(myFile *file, void *toAdd, size_t sizeToAdd) {
 
 
 /**
- * @brief                   Controlla che un file sia stato aperto da quel FD
+ * @brief                   Controlla che 'fd' abbia aperto 'file'
  * @fun                     fileIsOpenedFrom
  * @param file              File da controllare
  * @param fd                FD su cui andare a verificare l'apertura
- * @return                  (1) se Fd ha aperto il file; (0) altrimenti [setta errno]
+ * @return                  Se 'fd' ha aperto 'file' la funzione ritorna 1,
+ *                          0 se non lo ha aperto e -1 se c'è un errore settando errno
  */
 int fileIsOpenedFrom(myFile *file, int fd) {
     /** Variabili **/
@@ -126,41 +152,48 @@ int fileIsOpenedFrom(myFile *file, int fd) {
 
 
 /**
- * @brief               Controlla che FD abbia effettuato la lock
+ * @brief               Controlla che 'fd' abbia effettuato una lock su 'file'
  * @fun                 fileIsLockedFrom
  * @param file          File su cui effettuare le verifiche
  * @param fd            FD per effettuare il controllo
- * @return              (1) se Fd ha la lock sul file; (0) se non ha la lock; (-1) se ci sono errori [setta errno]
+ * @return              Se 'fd' ha la lock su 'file' la funzione ritorna 1,
+ *                      0 se non lo ha la lock e -1 se c'è un errore settando errno
  */
 int fileIsLockedFrom(myFile *file, int fd) {
     /** Variabili **/
-    int index = -1;
+    int res = -1;
     int *fdSearch = NULL;
 
     /** Controllo parametri **/
     if(file == NULL) { errno = EINVAL; return -1; }
     if(fd <= 0) { errno = EINVAL; return -1; }
-    if((fdSearch = (int *) malloc(sizeof(int))) == NULL) { errno = EINVAL; return -1; }
+    if((fdSearch = (int *) malloc(sizeof(int))) == NULL) {
+        errno = EINVAL;
+        return -1;
+    }
 
     /** Controllo di lock sul file **/
     *fdSearch = fd;
-    if(fileIsOpenedFrom(file, fd) == 0) return 0;
-    while(++index < file->numeroUtentiConnessi) {
-        if((file->utentiConnessi)[index] == fd) {
-            if(searchElement(file->utentiLocked, fdSearch, compare_fd) == 1) { free(fdSearch); return 1; }
-        }
+    if(fileIsOpenedFrom(file, fd) == 0) {
+        free(fdSearch);
+        return 0;
     }
+    res = elementExist(file->utentiLocked, fdSearch, compare_fd);
+    if(res == 1) { free(fdSearch); return 1; }
 
     free(fdSearch);
+    errno = 0;
     return 0;
 }
 
 
 /**
- * @brief               Apertura del file da parte di fd
+ * @brief               Permette a 'fd' di aprire 'file'
  * @param file          File da aprire
  * @param fd            FD che vuole aprire il file
- * @return              (0) file aperto correttamente; (1) file gia aperto da FD; (-1) altrimenti [setta errno]
+ * @return              Ritorna 0 se il file è stato aperto correttamente,
+ *                      1 se il file era già aperto da 'fd' e -1 se c'è
+ *                      un errore; viene settato errno
  */
 int openFile(myFile *file, int fd) {
     /** Controllo parametri **/
@@ -168,23 +201,28 @@ int openFile(myFile *file, int fd) {
     if(fd <= 0) { errno = EINVAL; return -1; }
 
     /** Apertura del file da parte di fd **/
-    if(file->numeroUtentiConnessi == file->maxUtentiConnessiAlFile) { printf("NOO\n"); errno = EMLINK; return -1; }
+    if(file->numeroUtentiConnessi == file->maxUtentiConnessiAlFile) {
+        errno = EMLINK;
+        return -1;
+    }
     if(fileIsOpenedFrom(file, fd)) return 1;
 
     (file->utentiConnessi)[file->numeroUtentiConnessi] = fd;
     (file->numeroUtentiConnessi)++;
 
     updateTime(file);
+    errno = 0;
     return 0;
 }
 
 
 /**
- * @brief               Chiude il file per FD
+ * @brief               Esegue la chiusura di 'file' per conto di 'fd'
  * @fun                 closeFile
  * @param file          File da chiudere per FD
  * @param fd            FD che deve chiudere il file
- * @return              (0) in caso di successo; (-1) altrimenti [setta errno]
+ * @return              Ritorna 0 se il file è stato chiuso correttamente,
+ *                      -1 se c'è un errore; viene settato errno
  */
 int closeFile(myFile *file, int fd) {
     /** Variabili **/
@@ -195,13 +233,19 @@ int closeFile(myFile *file, int fd) {
     if(fd <= 0) { errno = EINVAL; return -1; }
 
     /** Chiudo il file **/
+    if(fileIsLockedFrom(file, fd) == 1) {
+        errno = EPERM;
+        return -1;
+    }
     while(++index < file->numeroUtentiConnessi) {
         if((file->utentiConnessi)[index] == fd) {
-            int fd_save = (file->utentiConnessi)[file->numeroUtentiConnessi-1];
-            (file->utentiConnessi)[file->numeroUtentiConnessi-1] = -1;
+            (file->numeroUtentiConnessi)--;
+            int fd_save = (file->utentiConnessi)[file->numeroUtentiConnessi];
+            (file->utentiConnessi)[file->numeroUtentiConnessi] = -1;
             (file->utentiConnessi)[index] = fd_save;
 
             updateTime(file);
+            errno = 0;
             return 0;
         }
     }
@@ -212,12 +256,15 @@ int closeFile(myFile *file, int fd) {
 
 
 /**
- * @brief               Effettua la lock sul file per FD
+ * @brief               Effettua la lock su 'file' da parte di 'fd'
  * @fun                 lockFile
  * @param file          File su cui effettuare la lock
  * @param fd            FD che vuole effettuare la lock
- * @return              (0) se la lock e' stata effettuata; (1) se FD ha gia' fatto
- *                      la lock; (-1) altrimenti [setta errno]
+ * @return              Ritorna 0 se la lock è andata a buon fine;
+ *                      1 se la lock è già presente nel file; -1 in
+ *                      caso di errore e viene settato errno
+ * @warning             In un caso speciale viene ritornato 1 e settato errno:
+ *                      questo indica che la lock è in possesso di 'fd'
  */
 int lockFile(myFile *file, int fd) {
     /** Variabili **/
@@ -228,13 +275,22 @@ int lockFile(myFile *file, int fd) {
     if(fd <= 0) { errno = EINVAL; return -1; }
 
     /** Lock del file **/
-    if(!fileIsOpenedFrom(file, fd)) { errno = EBADF; return -1; }
-    if(fileIsLockedFrom(file, fd) == 1) return 1;
+    if(!fileIsOpenedFrom(file, fd)) {
+        errno = EBADF;
+        return -1;
+    }
+    if(fileIsLockedFrom(file, fd) == 1) {
+        errno = EALREADY;
+        return -1;
+    }
     if((fdInsert = (int *) malloc(sizeof(int))) == NULL) return -1;
     *fdInsert = fd;
     if(file->utentiLocked == NULL) file->utenteLock = fd;
     else res = 1;
-    if((file->utentiLocked = insertIntoQueue(file->utentiLocked, fdInsert, sizeof(int))) == NULL) { file->utenteLock = -1; free(fdInsert); return -1; }
+    if((file->utentiLocked = insertIntoQueue(file->utentiLocked, fdInsert, sizeof(int))) == NULL) {
+        file->utenteLock = -1;
+        free(fdInsert); return -1;
+    }
 
     free(fdInsert);
     updateTime(file);
@@ -243,11 +299,12 @@ int lockFile(myFile *file, int fd) {
 
 
 /**
- * @brief               Effettua la unlock sul file per FD
+ * @brief               Effettua la unlock su 'file' da parte di 'fd'
  * @fun                 unlockFile
- * @param file          File su cui effettuare la lock
- * @param fd            FD che vuole effettuare la lock
- * @return              (0) se la lock e' stata effettuata; (-1) altrimenti [setta errno]
+ * @param file          File su cui effettuare la unlock
+ * @param fd            FD che vuole effettuare la unlock
+ * @return              Ritorna 0 se la unlock è andata a buonfine; -1 se
+ *                      ci sono errori; viene settato errno
  */
 int unlockFile(myFile *file, int fd) {
     /** Variabili **/
@@ -259,21 +316,31 @@ int unlockFile(myFile *file, int fd) {
     if(fd <= 0) { errno = EINVAL; return -1; }
 
     /** Lock del file **/
-    if(!fileIsOpenedFrom(file, fd)) { errno = EBADF; return -1; }
-    if(!fileIsLockedFrom(file, fd)) { errno = EBADF; return -1; }
+    if(!fileIsOpenedFrom(file, fd)) {
+        errno = EBADF;
+        return -1;
+    }
+    if(!fileIsLockedFrom(file, fd)) {
+        errno = EBADF;
+        return -1;
+    }
     retValue = file->utenteLock;
-    if((delete = deleteElementFromQueue(&(file->utentiLocked), &fd, compare_fd)) == NULL) { errno = EBADF; return -1; }
-    if((file->utentiLocked != NULL) && (file->utenteLock != *(int *) file->utentiLocked->data)) file->utenteLock = *(int *) file->utentiLocked->data;
+    if((delete = deleteElementFromQueue(&(file->utentiLocked), &fd, compare_fd)) == NULL) {
+        errno = EBADF;
+        return -1;
+    }
+    if((file->utentiLocked != NULL) && (file->utenteLock == *(int *) delete)) file->utenteLock = *(int *) file->utentiLocked->data;
     else if(file->utentiLocked == NULL) file->utenteLock = -1;
 
     updateTime(file);
+    free(delete);
     if((file->utentiLocked == NULL) || (retValue == file->utenteLock)) return 0;
     else return file->utenteLock;
 }
 
 
 /**
- * @brief                               Elimino un file
+ * @brief                               Distruggo 'file'
  * @fun                                 destroyFile
  * @param file                          File da cancellare
  */
@@ -284,9 +351,10 @@ void destroyFile(myFile **file) {
     /** Dealloco la memoria **/
     if((*file)->pathname != NULL) free((*file)->pathname);
     if((*file)->buffer != NULL) free((*file)->buffer);
-    free((*file)->utentiConnessi);
+    if((*file)->utentiConnessi != NULL) free((*file)->utentiConnessi);
+    printf("cancjjjjjjjj\n");
     destroyQueue(&((*file)->utentiLocked), free);
     free((*file));
 
-    file = NULL;
+    *file = NULL;
 }

@@ -25,7 +25,6 @@
         int fd;
         int pfd;
         LRU_Memory *cache;
-        Pre_Inserimento* pI;
         serverLogFile *log;
     } Task_Package;
 

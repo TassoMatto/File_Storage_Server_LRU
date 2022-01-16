@@ -15,6 +15,7 @@
     #include <string.h>
     #include <errno.h>
     #include <pthread.h>
+    #include <math.h>
     #include <icl_hash.h>
     #include <file.h>
     #include <logFile.h>
@@ -51,16 +52,15 @@
 
 
     typedef struct {
-        icl_hash_t *pI;
-        pthread_mutex_t *lockPI;
-        serverLogFile *log;
-    } Pre_Inserimento;
-
-
-    typedef struct {
         int fd_cl;
         myFile *f;
     } ClientFile;
+
+
+    typedef struct {
+        int fd;
+        char *openFile;
+    } userLink;
 
 
     /**
@@ -84,6 +84,10 @@
      */
     typedef struct {
         /** Strutture dati **/
+        Queue **usersConnected;
+        pthread_mutex_t *usersConnectedAccess;
+        icl_hash_t *notAdded;
+        pthread_mutex_t *notAddedAccess;
         icl_hash_t *tabella;
         myFile **LRU;
         serverLogFile *log;
@@ -91,17 +95,18 @@
         pthread_mutex_t *Files_Access;
 
         /** Informazioni capacitive **/
-        ssize_t maxBytesOnline;
+        size_t maxBytesOnline;
         unsigned int maxFileOnline;
         unsigned int maxUtentiPerFile;
 
         /** Valori attuali **/
-        ssize_t bytesOnline;
+        size_t bytesOnline;
         unsigned int fileOnline;
+        unsigned int usersOnline;
 
         /** Informazioni statistiche **/
         unsigned int massimoNumeroDiFileOnline;
-        ssize_t numeroMassimoBytesCaricato;
+        size_t numeroMassimoBytesCaricato;
         unsigned int numeroMemoryMiss;
         unsigned int numTotLogin;
     } LRU_Memory;
@@ -124,11 +129,11 @@
 
 
     /**
-     * @brief                   Controlla se un file esiste o meno nel server (per uso esterno al file FileStorageServer.c)
-     * @fun                     fileExist
-     * @return                  (1) se il file esiste; (0) se non esiste; (-1) in caso di errore nella ricerca
+     * @brief                    Crea il file che successivamente verra' aggiunto alla memoria cache
+     * @fun                     createFileToInsert
+     * @return                  (0) in caso di successo; (-1) [setta errno] altrimenti
      */
-    int fileExist(LRU_Memory *, const char *);
+    int createFileToInsert(LRU_Memory *, const char *, unsigned int, int, int);
 
 
     /**
@@ -140,24 +145,13 @@
     int openFileOnCache(LRU_Memory *cache, const char *pathname, int openFD);
 
 
+    /**
+     * @brief                   Chiude un file aperto da 'closeFD' (e lo unlocka se anche locked)
+     * @fun                     closeFileOnCache
+     * @return                  In caso di successo ritorna 0 o FD del client che ora detiene la lock
+     *                          del file dopo 'closeFD'; -1 altrimenti e setta errno
+     */
     int closeFileOnCache(LRU_Memory *cache, const char *pathname, int closeFD);
-
-
-    /**
-     * @brief                   Creo la tabella che conterranno i file vuoti
-     *                          non ancora scritti e salvati nella cache
-     * @fun                     createPreInserimento
-     * @return                  Ritorna la struttura di Pre-Inserimento; in caso di errore [setta errno]
-     */
-    Pre_Inserimento* createPreInserimento(int, serverLogFile *);
-
-
-    /**
-     * @brief                    Crea il file che successivamente verra' aggiunto alla memoria cache
-     * @fun                     createFileToInsert
-     * @return                  (0) in caso di successo; (-1) [setta errno] altrimenti
-     */
-    int createFileToInsert(Pre_Inserimento *, const char *, unsigned int, int, int);
 
 
     /**
@@ -166,7 +160,7 @@
      * @return              Ritorna i file espulsi in seguito a memory miss oppure NULL; in caso di errore nell'aggiunta del file
      *                      viene settato errno
      */
-    myFile** addFileOnCache(LRU_Memory *, Pre_Inserimento *, const char *, int, int);
+    myFile** addFileOnCache(LRU_Memory *, const char *, int, int);
 
 
     /**
@@ -174,7 +168,7 @@
      * @fun                     removeFileOnCache
      * @return                  Ritorna il file cancellato; in caso di errore ritorna NULL [setta errno]
      */
-    myFile* removeFileOnCache(LRU_Memory *, const char *);
+    myFile* removeFileOnCache(LRU_Memory *, const char *, int);
 
 
     /**
@@ -193,6 +187,12 @@
     size_t readFileOnCache(LRU_Memory *, const char *, void **);
 
 
+    /**
+     * @brief               Legge N file in ordine della LRU non locked
+     * @fun                 readRandFiles
+     * @return              Ritorna i file letti effettivamente; se ci sono errori viene settato errno e
+     *                      viene ritornato NULL
+     */
     myFile **readsRandFiles(LRU_Memory *, int);
 
 
@@ -215,10 +215,20 @@
 
 
     /**
+     * @brief               Funzione che elimina ogni pendenza di un client disconnesso
+     *                      su tutti i file in gestione a lui
+     * @fun                 deleteClientFromCache
+     * @return              Ritorna un puntatore ad un array di fd che specifica i client che sono in attesa dei file
+     *                      locked da 'fd'; altrimenti, in caso di errore, setta errno
+     */
+    int* deleteClientFromCache(LRU_Memory *, int);
+
+
+    /**
      * @brief                   Cancella tutta la memoria e i settings della memoria cache
      * @fun                     deleteLRU
      */
-    void deleteLRU(Settings **, LRU_Memory **, Pre_Inserimento **);
+    void deleteLRU(Settings **, LRU_Memory **);
 
 
 #endif //FILE_STORAGE_SERVER_LRU_FILESTORAGESERVER_H

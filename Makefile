@@ -25,7 +25,7 @@ CL = ./client
 ./server	: 	./includes/logFile/logFile.o ./includes/FileStorageServer/FileStorageServer.o ./includes/utils/utils.o ./includes/queue/queue.o ./includes/threadPool/threadPool.o ./includes/File/file.o ./includes/hashTable/icl_hash.o ./includes/FileStorageServer/FileStorageServer.o ./includes/API/Server_API.o ./server.o
 	$(CC) -o $@ $^ $(LPTHREADS) $(MATH_H)
 
-./client	:	./includes/API/Client_API.o	./clientTest.o ./includes/utils/utils.o
+./client	:	./includes/API/Client_API.o	./client.o ./includes/utils/utils.o
 	$(CC) -o $@ $^ $(LPTHREADS) $(MATH_H)
 
 ./%.o :	./%.c

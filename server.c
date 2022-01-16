@@ -51,7 +51,7 @@
         if(pool != NULL) { stopThreadPool(pool, (HARDSHOT)); }      \
         if(fd_sk != -1) { close(fd_sk); }                           \
         unlink(setServer->socket);                                  \
-        if(setServer != NULL) { deleteLRU(&setServer, &cacheLRU, &pI); } \
+        if(setServer != NULL) { deleteLRU(&setServer, &cacheLRU); } \
         if(log != NULL) { stopServerTracing(&log); }                \
         if(pfd[0] != -1) { close(pfd[0]); }                         \
         if(pfd[1] != -1) { close(pfd[1]); }                         \
@@ -202,7 +202,6 @@ int main(int argc, char **argv) {
     argToHandler *sigHand = NULL;
     Settings *setServer = NULL;
     LRU_Memory *cacheLRU = NULL;
-    Pre_Inserimento *pI = NULL;
     Task *commitToPool = NULL;
     Task_Package *taskPackage = NULL;
     struct timeval selectRefreshig, saveSelectRefreshig;
@@ -308,11 +307,6 @@ int main(int argc, char **argv) {
         FREE_SERVER(1)
         exit(errno);
     }
-    if((pI = createPreInserimento((int) ((setServer->maxUtentiPerFile)*(setServer->maxNumeroFileCaricabili)), log)) == NULL) {
-        FREE_SERVER(1)
-        exit(errno);
-    }
-    TRACE_ON_LOG("[THREAD MANAGER]: Memoria cache costruita\n", NULL)
 
     /** Gestione segnali personalizzata **/
     if((handler = (pthread_t *) malloc(sizeof(pthread_t))) == NULL) {
@@ -394,7 +388,6 @@ int main(int argc, char **argv) {
                     }
                     TRACE_ON_LOG("[THREAD MANAGER]: Client con fd:%d, invio task al pool di thread\n", fd)
                     taskPackage->fd = fd;
-                    taskPackage->pI = pI;
                     taskPackage->cache = cacheLRU;
                     taskPackage->pfd = pfd[1];
                     taskPackage->log = log;

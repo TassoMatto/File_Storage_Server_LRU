@@ -3,6 +3,7 @@
  * @brief               Gestione di un file in memoria virtuale
  * @author              Simone Tassotti
  * @date                28/12/2021
+ * @finish              15/01/2022
  */
 
 #ifndef FILE_STORAGE_SERVER_LRU_FILE_H
@@ -40,10 +41,11 @@
      * @param lockAccessFile            Lock per accedere in mutua esclusione al file
      * @param maxUtentiConnessiAlFile   Numero massimo di utenti che possono aprire al file
      * @param numeroUtentiConnessi      Numero di utenti hanno il file aperto
+     * @param time                      Tempo di ultimo utilizzo
      */
     typedef struct {
         char *pathname;
-        ssize_t size;
+        size_t size;
         void *buffer;
 
         int *utentiConnessi;
@@ -58,78 +60,85 @@
 
 
     /**
-     * @brief                               Crea la struttura del file
+     * @brief                               Crea un file di tipo 'pathname' il quale può essere
+     *                                      aperto da al più 'maxUtentiConnessiAlFile', accedendovi
+     *                                      in mutua esclusione (se allocata) con 'lockAccessFile'
      * @fun                                 createFile
-     * @return                              Ritorna il file; in caso di errore ritorna NULL [setta errno]
+     * @return                              Ritorna la struttura del file tutta impostata
+     *                                      In caso di errore ritorna NULL e setta errno
      */
     myFile* createFile(const char *, unsigned int, pthread_mutex_t *);
 
 
     /**
-     * @brief               Aggiorna il tempo di ultimo utilizzo
-     * @fun                 updateTime
-     */
-    void updateTime(myFile *);
-
-
-    /**
-     * @brief                   Controlla che un file sia stato aperto da quel FD
-     * @fun                     fileIsOpenedFrom
-     * @return                  (1) se Fd ha aperto il file; (0) altrimenti [setta errno]
-     */
-    int fileIsOpenedFrom(myFile *, int);
-
-
-    /**
-     * @brief               Controlla che FD abbia effettuato la lock
-     * @fun                 fileIsLockedFrom
-     * @return              (1) se Fd ha la lock sul file; (0) se non ha la lock; (-1) se ci sono errori [setta errno]
-     */
-    int fileIsLockedFrom(myFile *, int);
-
-
-    /**
-     * @brief                       Aggiorna il contenuto di un file
+     * @brief                       Aggiorna il contenuto di 'file' aggiungendo in append 'toAdd'
+     *                              di dimensione 'sizeToAdd'
      * @fun                         addContentToFile
-     * @return                      Ritorna la nuova dimensione del file; altrimenti ritorna -1 [setta errno]
+     * @return                      Ritorna la dimensione finale del file con aggiunto il contenuto
+     *                              In caso di errore ritorna NULL e setta errno
      */
     size_t addContentToFile(myFile *, void *, size_t);
 
 
     /**
-     * @brief               Apertura del file da parte di fd
-     * @return              (0) file aperto correttamente; (1) file gia aperto da FD; (-1) altrimenti [setta errno]
+     * @brief                   Controlla che 'fd' abbia aperto 'file'
+     * @fun                     fileIsOpenedFrom
+     * @return                  Se 'fd' ha aperto 'file' la funzione ritorna 1,
+     *                          0 se non lo ha aperto e -1 se c'è un errore settando errno
+     */
+    int fileIsOpenedFrom(myFile *, int);
+
+
+    /**
+     * @brief               Controlla che 'fd' abbia effettuato una lock su 'file'
+     * @fun                 fileIsLockedFrom
+     * @return              Se 'fd' ha la lock su 'file' la funzione ritorna 1,
+     *                      0 se non lo ha la lock e -1 se c'è un errore settando errno
+     */
+    int fileIsLockedFrom(myFile *, int);
+
+
+    /**
+     * @brief               Permette a 'fd' di aprire 'file'
+     * @return              Ritorna 0 se il file è stato aperto correttamente,
+     *                      1 se il file era già aperto da 'fd' e -1 se c'è
+     *                      un errore; viene settato errno
      */
     int openFile(myFile *, int);
 
 
     /**
-     * @brief               Chiude il file per FD
+     * @brief               Esegue la chiusura di 'file' per conto di 'fd'
      * @fun                 closeFile
-     * @return              (0) in caso di successo; (-1) altrimenti [setta errno]
+     * @return              Ritorna 0 se il file è stato chiuso correttamente,
+     *                      -1 se c'è un errore; viene settato errno
      */
     int closeFile(myFile *file, int fd);
 
 
     /**
-    * @brief               Effettua la lock sul file per FD
-    * @fun                 lockFile
-    * @return              (0) se la lock e' stata effettuata; (1) se FD ha gia' fatto
-    *                      la lock; (-1) altrimenti [setta errno]
-    */
+     * @brief               Effettua la lock su 'file' da parte di 'fd'
+     * @fun                 lockFile
+     * @return              Ritorna 0 se la lock è andata a buon fine;
+     *                      1 se la lock è già presente nel file; -1 in
+     *                      caso di errore e viene settato errno
+     * @warning             In un caso speciale viene ritornato 1 e settato errno:
+     *                      questo indica che la lock è in possesso di 'fd'
+     */
     int lockFile(myFile *, int);
 
 
     /**
-    * @brief               Effettua la unlock sul file per FD
-    * @fun                 unlockFile
-    * @return              (0) se la lock e' stata effettuata; (-1) altrimenti [setta errno]
-    */
+     * @brief               Effettua la unlock su 'file' da parte di 'fd'
+     * @fun                 unlockFile
+     * @return              Ritorna 0 se la unlock è andata a buonfine; -1 se
+     *                      ci sono errori; viene settato errno
+     */
     int unlockFile(myFile *, int);
 
 
     /**
-     * @brief                               Elimino un file
+     * @brief                               Distruggo 'file'
      * @fun                                 destroyFile
      */
     void destroyFile(myFile **);
