@@ -9,7 +9,12 @@
 
     #define FILE_STORAGE_SERVER_LRU_FILESTORAGESERVER_H
 
-    #define _POSIX_C_SOURCE 2001112L
+
+    #ifndef _POSIX_C_SOURCE
+        #define _POSIX_C_SOURCE 2001112L
+    #endif
+
+
     #include <stdlib.h>
     #include <stdio.h>
     #include <string.h>
@@ -96,13 +101,15 @@
 
         /** Informazioni capacitive **/
         size_t maxBytesOnline;
+        unsigned int maxUsersLoggedOnline;
         unsigned int maxFileOnline;
         unsigned int maxUtentiPerFile;
 
         /** Valori attuali **/
         size_t bytesOnline;
         unsigned int fileOnline;
-        unsigned int usersOnline;
+        unsigned int usersLoggedNow;
+        unsigned int usersOnlineOpenFile;
 
         /** Informazioni statistiche **/
         unsigned int massimoNumeroDiFileOnline;
@@ -126,6 +133,14 @@
      * @return                          Ritorna la struttura della memoria in caso di successo; NULL altrimenti [setta errno]
      */
     LRU_Memory* startLRUMemory(Settings *, serverLogFile *);
+
+
+    int loginClient(LRU_Memory *);
+
+unsigned int clientOnline(LRU_Memory *);
+
+
+    int logoutClient(LRU_Memory *);
 
 
     /**
@@ -176,7 +191,7 @@
     * @fun                         appendFile
     * @return                      Ritorna gli eventuali file espulsi; in caso di errore valutare se si setta errno
     */
-    myFile** appendFile(LRU_Memory *, const char *, void *, size_t);
+    myFile** appendFile(LRU_Memory *, const char *, int, void *, size_t);
 
 
     /**
@@ -184,7 +199,7 @@
      * @fun                     readFileOnCache
      * @return                  Ritorna la dimensione del buffer; (-1) altrimenti [setta errno]
      */
-    size_t readFileOnCache(LRU_Memory *, const char *, void **);
+    size_t readFileOnCache(LRU_Memory *, const char *, int, void **);
 
 
     /**
@@ -193,7 +208,7 @@
      * @return              Ritorna i file letti effettivamente; se ci sono errori viene settato errno e
      *                      viene ritornato NULL
      */
-    myFile **readsRandFiles(LRU_Memory *, int);
+    myFile **readsRandFiles(LRU_Memory *, int, int *);
 
 
     /**

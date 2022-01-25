@@ -13,25 +13,18 @@
 #include <string.h>
 #include <stddef.h>
 #include <unistd.h>
-#include <sys/wait.h>
 #include <pthread.h>
 #include <sys/select.h>
-#include <sys/time.h>
 #include <sys/types.h>
-#include <sys/stat.h>
 #include <fcntl.h>
 #include <signal.h>
 #include <sys/socket.h>
 #include <sys/un.h>
 #include <errno.h>
-#include <fcntl.h>
 #include <logFile.h>
 #include <FileStorageServer.h>
 #include <threadPool.h>
 #include <Server_API.h>
-
-
-#define REQUEST_QUEUE_SOCKET 20
 
 
 /**
@@ -42,17 +35,24 @@
 #define FREE_SERVER(HARDSHOT)                                       \
     do {                                                            \
         error = errno;                                              \
+        if(status != NULL) { free(status); }                        \
+        if(commitToPool != NULL) { free(commitToPool); }            \
+        if(pool != NULL) { stopThreadPool(pool, (HARDSHOT)); }                                                                 \
+        if(fd_sk != -1) { close(fd_sk); }                           \
         for(fd = 0; fd <= fd_num; fd++) {                           \
             if(FD_ISSET(fd, &setInit))                              \
                 close(fd);                                          \
-        }                                                           \
-        if(status != NULL) { free(status); }                        \
-        if(commitToPool != NULL) { free(commitToPool); }            \
-        if(pool != NULL) { stopThreadPool(pool, (HARDSHOT)); }      \
-        if(fd_sk != -1) { close(fd_sk); }                           \
+        }                                                            \
         unlink(setServer->socket);                                  \
+        index = -1;                                                            \
+        while((cacheLRU->usersConnected)[++index] != NULL) {            \
+            printf("Elimonoooo\n");                                                        \
+            fd = ((userLink *) (cacheLRU->usersConnected)[index]->data)->fd;                                                   \
+            printf("%d\n", fd);close(fd);                                              \
+        }                                                           \
+        traceOnLog(log, "CIAOOOO\n");                                                            \
         if(setServer != NULL) { deleteLRU(&setServer, &cacheLRU); } \
-        if(log != NULL) { stopServerTracing(&log); }                \
+        if(log != NULL) { printf("CI sonoooooooo\n");stopServerTracing(&log); }                \
         if(pfd[0] != -1) { close(pfd[0]); }                         \
         if(pfd[1] != -1) { close(pfd[1]); }                         \
         if(handler != NULL) free(handler);                          \
@@ -66,7 +66,7 @@
  * @param TXT       Testo da scrivere
  */
 #define TRACE_ON_LOG(TXT, ...)                          \
-    if(traceOnLog(log, TXT, __VA_ARGS__) == -1) {       \
+    if(traceOnLog(log, TXT, ##__VA_ARGS__) == -1) {       \
         FREE_SERVER(1)                                  \
         exit(errno);                                    \
     }
@@ -171,13 +171,14 @@ static void* signalHandler(void *argv) {
     switch (sig) {
         case SIGINT:
         case SIGQUIT:
-            close(pfd[0]);
+//            close(pfd[0]);
             close(pfd[1]);
             FD_CLR(pfd[0], set);
             *status = 1;
         break;
 
         default:
+            printf("\n\n\n\n\n\n\n\n\n\n\n\n\nDocile\n");
             *status = 0;
     }
 
@@ -189,10 +190,11 @@ static void* signalHandler(void *argv) {
 int main(int argc, char **argv) {
     /** Variabili **/
     int *status = NULL;
+    int index = -1;
     int fd = 0, fd_sk = -1, fd_cl = -1, fd_num = 0, selectRes = -1;
     int error = 0, pfd[2] = {-1, -1};
     int runnable = 1;
-    size_t pipeBytes = -1;
+    ssize_t pipeBytes = -1;
     sigset_t set, oldset;
     fd_set setInit, setRead;
     struct sockaddr_un sock_addr;
@@ -220,8 +222,8 @@ int main(int argc, char **argv) {
         FREE_SERVER(1)
         exit(errno);
     }
-    TRACE_ON_LOG("[THREAD MANAGER]:\t\t\t\t[FILE STORAGE SERVER]\n", NULL)
-    TRACE_ON_LOG("[THREAD MANAGER]: Avvio del server in corso...\n", NULL)
+    TRACE_ON_LOG("[THREAD MANAGER]:\t\t\t\t[FILE STORAGE SERVER]\n")
+    TRACE_ON_LOG("[THREAD MANAGER]: Avvio del server in corso...\n")
 
     /** Maschero segnali **/
     if(sigemptyset(&set) == -1) {
@@ -254,14 +256,14 @@ int main(int argc, char **argv) {
         perror("Signal Masking error");
         exit(errno);
     }
-    TRACE_ON_LOG("[THREAD MANAGER]: Applicazione della maschera hai segnali SIGINT - SIGQUIT - SIGHUP per gestione personalizzata\n", NULL)
+    TRACE_ON_LOG("[THREAD MANAGER]: Applicazione della maschera hai segnali SIGINT - SIGQUIT - SIGHUP per gestione personalizzata\n")
 
     /** Traduzione della configurazione del server dal file di config **/
     if((setServer = readConfigFile(argv[1])) == NULL) {
         FREE_SERVER(1)
         exit(errno);
     }
-    TRACE_ON_LOG("[THREAD MANAGER]: Lettura delle impostazioni del server da %s\n", argv[1])
+    TRACE_ON_LOG("[THREAD MANAGER]: Lettura delle impostazioni del server da \"%s\"\n", argv[1])
 
     /** Apertura della pipe di comunicazione **/
     if(pipe(pfd) == -1) {
@@ -269,7 +271,7 @@ int main(int argc, char **argv) {
         exit(errno);
     }
     fcntl(pfd[0], F_SETFL, O_NONBLOCK);
-    TRACE_ON_LOG("[THREAD MANAGER]: Apertura pipe comunicazione Thread Manager - Thread Worker per riabilitazione del client in lettura sulla socket\n", NULL)
+    TRACE_ON_LOG("[THREAD MANAGER]: Apertura pipe comunicazione Thread Manager - Thread Worker per riabilitazione del client in lettura sulla socket\n")
 
     /** Apertura della socket **/
     if((fd_sk = socket(AF_UNIX, SOCK_STREAM, 0)) == -1) {
@@ -282,11 +284,11 @@ int main(int argc, char **argv) {
         FREE_SERVER(1)
         exit(errno);
     }
-    if(listen(fd_sk, REQUEST_QUEUE_SOCKET) == -1) {
+    if(listen(fd_sk, (int) setServer->maxUtentiConnessi) == -1) {
         FREE_SERVER(1)
         exit(errno);
     }
-    TRACE_ON_LOG("[THREAD MANAGER]: Apertura della socket %s\n", setServer->socket)
+    TRACE_ON_LOG("[THREAD MANAGER]: Apertura della socket \"%s\"\n", setServer->socket)
 
     /** Preparazione degli fd da ascoltare in lettura **/
     if(fd_sk > fd_num) fd_num = fd_sk;
@@ -300,7 +302,7 @@ int main(int argc, char **argv) {
         perror("Errore");
         exit(errno);
     }
-    TRACE_ON_LOG("[THREAD MANAGER]: Avvio del threadpool effettuato correttamente: avviati %d thread\n", setServer->numeroThreadWorker)
+    TRACE_ON_LOG("[THREAD MANAGER]: Avvio del threadpool effettuato correttamente: avviati \"%d\" thread\n", setServer->numeroThreadWorker)
 
     /** Avvio memoria cache LRU **/
     if((cacheLRU = startLRUMemory(setServer, log)) == NULL) {
@@ -325,7 +327,7 @@ int main(int argc, char **argv) {
         FREE_SERVER(1)
         exit(errno);
     }
-    TRACE_ON_LOG("[THREAD MANAGER]: Gestione dei segnali affidata a thread specializzato\n", NULL)
+    TRACE_ON_LOG("[THREAD MANAGER]: Gestione dei segnali affidata a thread specializzato\n")
 
     /** Inizio del lavoro per il server **/
     selectRefreshig.tv_sec = 2;
@@ -334,48 +336,54 @@ int main(int argc, char **argv) {
         FREE_SERVER(1)
         exit(errno);
     }
-    TRACE_ON_LOG("[THREAD MANAGER]: Server avviato correttamente...\n", NULL)
-    while(runnable) {
+    TRACE_ON_LOG("[THREAD MANAGER]: Server avviato correttamente...\n")
+    while(runnable ||  ((FD_ISSET(pfd[0], &setInit)) && (clientOnline(cacheLRU)>0))) {
         /** Aspetto che vi venga mandata una richiesta **/
         memcpy(&setRead, &setInit, sizeof(fd_set));
         saveSelectRefreshig = selectRefreshig;
         if(((selectRes = select(fd_num+1, &setRead, NULL, NULL, &saveSelectRefreshig)) == -1) && (errno != EINTR)) {
             FREE_SERVER(1)
             exit(errno);
-        } else if (selectRes <= 0) continue;
+        } else if (selectRes <= 0 && runnable) continue;
 
-        TRACE_ON_LOG("[THREAD MANAGER]: Select: nuovi fd pronti in lettura...\n", NULL)
+        TRACE_ON_LOG("[THREAD MANAGER]: Select: nuovi fd pronti in lettura...  %d\n", clientOnline(cacheLRU))
         for(fd = 0; fd <= fd_num; fd++) {
             if(FD_ISSET(fd, &setRead)) {
-                TRACE_ON_LOG("[THREAD MANAGER]: FD:%d pronto in lettura\n", fd)
+                TRACE_ON_LOG("[THREAD MANAGER]: fd:\"%d\" pronto in lettura\n", fd)
                 if(fd == fd_sk) { /** Richiesta di connessione di un nuovo client **/
                     /** Abilito in lettura il nuovo client **/
-                    TRACE_ON_LOG("[THREAD MANAGER]: Accept(): richiesta di accettazione di un client\n", NULL)
+                    TRACE_ON_LOG("[THREAD MANAGER]: Accept(): richiesta di accettazione di un client\n")
+                    if(loginClient(cacheLRU) == -1) {
+                        TRACE_ON_LOG("[THREAD MANAGE]: Troppi utenti connessi, il client deve attendere...\n")
+                        continue;
+                    }
                     if(((fd_cl = accept(fd_sk, NULL, 0)) == -1) && (errno != EINTR)) {
                         FREE_SERVER(1)
                         exit(errno);
                     }
-
+                    (cacheLRU->numTotLogin)++;
                     FD_SET(fd_cl, &setInit);
                     if(fd_cl > fd_num) fd_num = fd_cl;
-                    TRACE_ON_LOG("[THREAD MANAGER]: Accept(): client con fd:%d accettato\n", fd_cl)
+                    TRACE_ON_LOG("[THREAD MANAGER]: Accept(): client con fd:\"%d\" accettato\n", fd_cl)
                 } else if(fd == pfd[0]) { /** Richiesta di riabilitazione di un client in lettura o chiusura della connessione col server **/
-                    TRACE_ON_LOG("[THREAD MANAGER]: Pipe pronta in lettura: riabilitazione vecchi fd disabilitati\n", NULL)
-                    pipeBytes = read(fd, &fd_cl, sizeof(int));
-                    while(( pipeBytes > 0) && (errno == 0)) {
+                    TRACE_ON_LOG("[THREAD MANAGER]: Pipe pronta in lettura: riabilitazione vecchi fd disabilitati\n")
+                    pipeBytes = read(pfd[0], &fd_cl, sizeof(int));
+                    printf("%ld\n\n\n\n", pipeBytes);
+                    while(pipeBytes > 0) {
                         /** Controllo che il client non abbia chiuso la comunicazione **/
                         if ((fcntl(fd_cl, F_GETFD) != -1) || (errno != EBADF)) {
-                            TRACE_ON_LOG("[THREAD MANAGER]: Client con fd:%d riabilitato\n", fd_cl, NULL)
+                            TRACE_ON_LOG("[THREAD MANAGER]: Client con fd:\"%d\" riabilitato\n", fd_cl)
                             FD_SET(fd_cl, &setInit);
                             if (fd_cl > fd_num) fd_num = fd_cl;
-                        } else {
-                            TRACE_ON_LOG("[THREAD MANAGER]: Client con fd:%d connessione chiusa\n", fd_cl)
-                            close(fd_cl);
-                            errno = 0;
-                        }
-                        pipeBytes = read(fd, &fd_cl, sizeof(int));
+                        } //else {
+//                            TRACE_ON_LOG("[THREAD MANAGER]: Client con fd:\"%d\" connessione chiusa\n", fd_cl)
+//                            close(fd_cl);
+//                            errno = 0;
+//                        }
+                        pipeBytes = read(pfd[0], &fd_cl, sizeof(int));
                     }
-
+                    if(errno == EAGAIN) continue;
+                    if(errno == EPIPE) break;
                     if((pipeBytes == -1) && (errno != 0) && (errno != EPIPE) && (errno != EAGAIN) && (errno != EINTR) && (errno != EBADF)) {
                         FREE_SERVER(1)
                         exit(errno);
@@ -386,7 +394,7 @@ int main(int argc, char **argv) {
                         FREE_SERVER(1)
                         exit(errno);
                     }
-                    TRACE_ON_LOG("[THREAD MANAGER]: Client con fd:%d, invio task al pool di thread\n", fd)
+                    TRACE_ON_LOG("[THREAD MANAGER]: Client con fd:\"%d\", invio task al pool di thread\n", fd)
                     taskPackage->fd = fd;
                     taskPackage->cache = cacheLRU;
                     taskPackage->pfd = pfd[1];
@@ -399,26 +407,24 @@ int main(int argc, char **argv) {
                     }
                     FD_CLR(fd, &setInit);
                     fd_num = update(fd_num, &setInit);
-                    TRACE_ON_LOG("[THREAD MANAGER]: Client con fd:%d, richiesta al pool di thread inviata correttamente\n", fd)
+                    TRACE_ON_LOG("[THREAD MANAGER]: Client con fd:\"%d\", richiesta al pool di thread inviata correttamente\n", fd)
                 }
             }
-
-            if(!runnable) break;
         }
     }
 
 
     /** Arresto del server **/
-    TRACE_ON_LOG("[THREAD MANAGER]: Server in fase di spegnimento...\n", NULL)
+    TRACE_ON_LOG("[THREAD MANAGER]: Server in fase di spegnimento...\n")
     if((error = pthread_join(*handler, (void **) &status)) != 0) {
         FREE_SERVER(1)
         exit(errno);
     }
     if(*status == 1) {
-        TRACE_ON_LOG("[THREAD MANAGER]: Arresto forzato: richiesta di spegnimento immediato\n", NULL)
+        TRACE_ON_LOG("[THREAD MANAGER]: Arresto forzato: richiesta di spegnimento immediato\n")
         FREE_SERVER(1)
     } else {
-        TRACE_ON_LOG("[THREAD MANAGER]: Arresto: richiesta di spegnimento graduale; attesa di completamento dei task pendenti nel pool\n", NULL)
+        TRACE_ON_LOG("[THREAD MANAGER]: Arresto: richiesta di spegnimento graduale; attesa di completamento dei task pendenti nel pool\n")
         FREE_SERVER(0)
     }
 

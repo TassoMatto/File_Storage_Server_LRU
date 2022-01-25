@@ -3,6 +3,7 @@
  * @brief               Gestione di un file di log di un server
  * @author              Simone Tassotti
  * @date                22/12/2021
+ * @finish              25/01/2022
  */
 
 #include "logFile.h"
@@ -16,7 +17,7 @@
 #define LOCK_LOG_FILE(LOG)                                              \
     do {                                                                \
         int error = 0;                                                  \
-        if((error = pthread_mutex_lock(LOG)) != 0) {        \
+        if((error = pthread_mutex_lock(LOG)) != 0) {                    \
             errno = error;                                              \
             perror("Fatal Error");                                      \
             return -1;                                                  \
@@ -52,16 +53,42 @@ serverLogFile* startServerTracing(const char *pathname) {
     serverLogFile *myLogFile = NULL;
 
     /** Controllo parametri **/
+    errno = 0;
     if(pathname == NULL) { errno = EINVAL; return NULL; }
 
     /** Alloco la struttura con file di log e variabile di accesso in mutua esclusione **/
-    if((myLogFile = (serverLogFile *) malloc(sizeof(serverLogFile))) == NULL) return NULL;
-    if(((myLogFile->lockFile) = (pthread_mutex_t *) malloc(sizeof(pthread_mutex_t))) == NULL) { free(myLogFile); return NULL; }
-    if((error = pthread_mutex_init((myLogFile->lockFile), NULL)) != 0) { free(myLogFile->lockFile); free(myLogFile); errno = error; return NULL; }
-    if((myLogFile->file = fopen(pathname, "w")) == NULL) { pthread_mutex_destroy(myLogFile->lockFile); free(myLogFile->lockFile); free(myLogFile); return NULL; }
-    if((myLogFile->pathname = (char *) calloc(strnlen(pathname, MAX_PATHNAME)+1, sizeof(char))) == NULL) { error = errno; fclose(myLogFile->file); pthread_mutex_destroy(myLogFile->lockFile); free(myLogFile->lockFile); free(myLogFile); errno = error; return NULL; }
+    if((myLogFile = (serverLogFile *) malloc(sizeof(serverLogFile))) == NULL) {
+        return NULL;
+    }
+    if(((myLogFile->lockFile) = (pthread_mutex_t *) malloc(sizeof(pthread_mutex_t))) == NULL) {
+        free(myLogFile);
+        return NULL;
+    }
+    if((error = pthread_mutex_init((myLogFile->lockFile), NULL)) != 0) {
+        free(myLogFile->lockFile);
+        free(myLogFile);
+        errno = error;
+        return NULL;
+    }
+    if((myLogFile->file = fopen(pathname, "w")) == NULL) {
+        pthread_mutex_destroy(myLogFile->lockFile);
+        free(myLogFile->lockFile);
+        free(myLogFile);
+        return NULL;
+    }
+    if((myLogFile->pathname = (char *) calloc(strnlen(pathname, MAX_PATHNAME)+1, sizeof(char))) == NULL) {
+        error = errno;
+        fclose(myLogFile->file);
+        pthread_mutex_destroy(myLogFile->lockFile);
+        free(myLogFile->lockFile);
+        free(myLogFile);
+        errno = error;
+        return NULL;
+    }
     strncpy(myLogFile->pathname, pathname, strnlen(pathname, MAX_PATHNAME));
 
+    /** File di log creato correttamente **/
+    errno = 0;
     return myLogFile;
 }
 
@@ -82,6 +109,7 @@ int traceOnLog(serverLogFile *serverLog, char *format, ...) {
     char *time = NULL, save[MAX_STRING_TIME], *change = NULL;
 
     /** Controllo parametri **/
+    errno = 0;
     if(serverLog == NULL) { errno = EINVAL; return -1; }
     if(format == NULL) { errno = EINVAL; return -1; }
 
@@ -92,11 +120,15 @@ int traceOnLog(serverLogFile *serverLog, char *format, ...) {
     *change = '\0';
     fprintf(serverLog->file, "%s -- ", time);
     va_start(string, format);
-    if(vfprintf(serverLog->file, format, string) < 0) { errno = EINVAL; return -1; }
+    if(vfprintf(serverLog->file, format, string) < 0) {
+        errno = EINVAL;
+        return -1;
+    }
     va_end(string);
     fflush(serverLog->file);
     UNLOCK_LOG_FILE(serverLog->lockFile)
 
+    errno = 0;
     return 0;
 }
 
@@ -112,14 +144,19 @@ void stopServerTracing(serverLogFile **serverLog) {
     int error = 0;
 
     /** Controllo parametri **/
+    errno = 0;
     if(*serverLog == NULL) { errno = EINVAL; return; }
 
     /** Chiudo tutto e dealloco la memoria **/
     if(fclose((*serverLog)->file) != 0) return;
-    if((error = pthread_mutex_destroy((*serverLog)->lockFile)) != 0) { errno = error; return; }
+    if((error = pthread_mutex_destroy((*serverLog)->lockFile)) != 0) {
+        errno = error;
+        return;
+    }
     free((*serverLog)->lockFile);
     free((*serverLog)->pathname);
     free((*serverLog));
 
     (*serverLog) = NULL;
+    errno = 0;
 }

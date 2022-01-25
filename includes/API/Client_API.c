@@ -19,10 +19,12 @@ char socketname[MAX_PATHNAME];
  * @struct          argTimer
  * @param stop      Indica lo stop dei tentativi di connessione
  * @param timer     Tempo massimo dei tentativi
+ * @param access    Lock per accedere alla variabile di timeout
  */
 typedef struct {
     int *stop;
     struct timespec timer;
+    pthread_mutex_t *access;
 } argTimer;
 
 
@@ -34,7 +36,7 @@ typedef struct {
  */
 static void* timeout(void *argv) {
     /** Variabili **/
-    int *stop = NULL;
+    int error = 0, *stop = NULL;
     struct timespec timer, remain;
     argTimer *converted = NULL;
 
@@ -42,9 +44,19 @@ static void* timeout(void *argv) {
     converted = (argTimer *) argv;
     stop = (int *) converted->stop;
     timer = (struct timespec) converted->timer;
+    pthread_mutex_t *access = converted->access;
+
     if(nanosleep(&timer, &remain) == -1)
         return &errno;
+    if((error = pthread_mutex_lock(access)) != 0) {
+        errno = error;
+        return &errno;
+    }
     *stop = 1;
+    if((error = pthread_mutex_unlock(access)) != 0) {
+        errno = error;
+        return &errno;
+    }
 
     return (void *) 0;
 }
@@ -57,11 +69,12 @@ static void* timeout(void *argv) {
  * @return                  In caso di successo ritorna il path assoluto del file;
  *                          altrimenti ritorna NULL [setta errno]
  */
-static char* abs_path(const char *pathname) {
+char* abs_path(const char *pathname) {
     /** Variabili **/
     char *abs_p = NULL, *name = NULL, *old_cwd = NULL, *copy = NULL;
 
     /** Calcolo il pathname assoluto **/
+    errno = 0;
     if((abs_p = (char *) calloc(MAX_PATHNAME, sizeof(char))) == NULL) {
         return NULL;
     }
@@ -76,6 +89,7 @@ static char* abs_path(const char *pathname) {
     }
     strncpy(copy, pathname, strnlen(pathname, MAX_PATHNAME)+1);
     if(getcwd(old_cwd, MAX_PATHNAME) == NULL) {
+        free(old_cwd);
         free(abs_p);
         free(copy);
         return NULL;
@@ -83,11 +97,14 @@ static char* abs_path(const char *pathname) {
     name = strrchr(copy, '/');
     if(name != NULL) name[0] = '\0';
     if(chdir(copy) == -1) {
+        free(old_cwd);
         free(abs_p);
         free(copy);
         return NULL;
     }
     if(getcwd(abs_p, MAX_PATHNAME) == NULL) {
+        if(chdir(old_cwd)) perror("chdir");
+        free(old_cwd);
         free(abs_p);
         free(copy);
         return NULL;
@@ -95,6 +112,7 @@ static char* abs_path(const char *pathname) {
     strncat(abs_p, "/", 2);
     strncat(abs_p, (name == NULL) ? pathname : (name+1), strnlen((name == NULL) ? pathname : (name+1), MAX_PATHNAME));
     if(chdir(old_cwd) == -1) {
+        free(old_cwd);
         free(abs_p);
         free(copy);
         return NULL;
@@ -102,6 +120,7 @@ static char* abs_path(const char *pathname) {
 
     free(old_cwd);
     free(copy);
+    errno = 0;
     return abs_p;
 }
 
@@ -114,37 +133,42 @@ static char* abs_path(const char *pathname) {
  * @param size              Dimensione del file da leggere
  * @return                  In caso di successo ritorna (0); (-1) altrimenti [setta errno]
  */
-//static int readFileFromDisk(const char *pathname, void **buf, size_t *size) {
-//    /** Variabili **/
-//    FILE *readF = NULL;
-//    struct stat checkFile;
-//    size_t readBytes = -1;
-//
-//    /** Controllo parametri **/
-//    if(pathname == NULL) { errno = EINVAL; return -1; }
-//    if(size == NULL) { errno = EINVAL; return -1; }
-//
-//    /** Controllo che il file esista e lo leggo **/
-//    if(stat(pathname, &checkFile) == -1) { return -1; }
-//    if(!S_ISREG(checkFile.st_mode)) { errno = ENOENT; return -1; }
-//    if((readF = fopen(pathname, "r")) == NULL) { return -1; }
-//    if((*buf = malloc(checkFile.st_size)) == NULL) { return -1; }
-//    while(!feof(readF)) {
-//        readBytes = fread(*buf, checkFile.st_size, 1, readF);
-//        if(readBytes == 0 && ferror(readF)) {
-//            printf("NOOO");
-//            errno = ferror(readF);
-//            return -1;
-//        }
-//    }
-//    if(fclose(readF) != 0) {
-//        free(*buf);
-//        return -1;
-//    }
-//
-//    *size = checkFile.st_size;
-//    return 0;
-//}
+int readFileFromDisk(const char *pathname, void **buf, size_t *size) {
+    /** Variabili **/
+    FILE *readF = NULL;
+    struct stat checkFile;
+    size_t readBytes = -1;
+
+    /** Controllo parametri **/
+    errno = 0;
+    if(pathname == NULL) { errno = EINVAL; return -1; }
+    if(size == NULL) { errno = EINVAL; return -1; }
+
+    /** Controllo che il file esista e lo leggo **/
+    if(stat(pathname, &checkFile) == -1) { *size = 0; return -1; }
+    if(!S_ISREG(checkFile.st_mode)) { errno = ENOENT; *size = 0; return -1; }
+    if((readF = fopen(pathname, "r")) == NULL) { *size = 0; return -1; }
+    if((*buf = malloc(checkFile.st_size)) == NULL) { fclose(readF); *size = 0; return -1; }
+    while(!feof(readF)) {
+        readBytes = fread(*buf, checkFile.st_size, 1, readF);
+        if(readBytes == 0 && ferror(readF)) {
+            errno = ferror(readF);
+            fclose(readF);
+            free(buf);
+            *size = 0;
+            return -1;
+        }
+    }
+    if(fclose(readF) != 0) {
+        free(*buf);
+        *size = 0;
+        return -1;
+    }
+
+    *size = checkFile.st_size;
+    errno = 0;
+    return 0;
+}
 
 
 /**
@@ -155,7 +179,7 @@ static char* abs_path(const char *pathname) {
  * @param size              Dimensione del buffer
  * @return                  (0) in caso di successo; (-1) altriment
  */
-static int writeFileIntoDisk(const char *pathname, const char *dirname, void *buf, size_t size) {
+int writeFileIntoDisk(const char *pathname, const char *dirname, void *buf, size_t size) {
     /** Variabili **/
     char *old_cwd = NULL, *name = NULL;
     FILE *writeF = NULL;
@@ -163,6 +187,7 @@ static int writeFileIntoDisk(const char *pathname, const char *dirname, void *bu
     struct stat checkDir;
 
     /** Controllo parametri **/
+    errno = 0;
     if(pathname == NULL) { errno = EINVAL; return -1; }
     if(size <= 0) { errno = EINVAL; return -1; }
     if(dirname == NULL) { errno = EINVAL; return -1; }
@@ -174,29 +199,249 @@ static int writeFileIntoDisk(const char *pathname, const char *dirname, void *bu
         return -1;
     }
     if(getcwd(old_cwd, MAX_PATHNAME) == NULL) {
+        free(old_cwd);
         return -1;
     }
-    if(chdir(dirname) == -1) { free(old_cwd); return -1; }
+    if(chdir(dirname) == -1) {
+        free(old_cwd);
+        return -1;
+    }
     if((name = strrchr(pathname, '/')) == NULL) {
         name = (char *) pathname;
     } else name++;
     if((writeF = fopen(name, "w")) == NULL) {
+        if(chdir(old_cwd) == -1) perror("chdir");
+        free(old_cwd);
         return -1;
     }
     writeBytes = fwrite(buf, size, 1, writeF);
     if(writeBytes == 0 && ferror(writeF)) {
+        fclose(writeF);
+        if(chdir(old_cwd) == -1) perror("chdir");
+        free(old_cwd);
         errno = ferror(writeF);
         return -1;
     }
     if(fclose(writeF) != 0) {
+        if(chdir(old_cwd) == -1) perror("chdir");
+        free(old_cwd);
         return -1;
     }
     if(chdir(old_cwd) == -1) {
+        free(old_cwd);
         return -1;
     }
     free(old_cwd);
 
+    errno = 0;
     return 0;
+}
+
+
+char** readNFileFromDir(const char *dirname, size_t n) {
+    /** Variabili **/
+    DIR *d = NULL;
+    struct stat buf;
+    struct dirent* dir_point = NULL;
+    int quit = 0;
+    size_t i = 2;
+    Queue *subDir = NULL;
+    char **list = NULL, **new_tmp = NULL;
+    char *pathname_file = NULL, *pathname_dir = NULL;
+    char *old_dirname = NULL, *thisDir = NULL, *queue_el = NULL;
+
+    /** Controllo parametri **/
+    errno = 0;
+    if(dirname == NULL) { errno = EINVAL; return NULL; }
+    if(stat(dirname, &buf) == -1) { return NULL; }
+    if(!S_ISDIR(buf.st_mode)) { errno = ENOENT; return NULL; }
+
+    if((old_dirname = (char *) calloc(MAX_PATHNAME, sizeof(char))) == NULL) return NULL;
+    if((pathname_dir = (char *) calloc(MAX_PATHNAME, sizeof(char))) == NULL) {
+        free(old_dirname);
+        return NULL;
+    }
+    strncpy(pathname_dir, dirname, strnlen(dirname, MAX_PATHNAME)+1);
+    if(getcwd(old_dirname, MAX_PATHNAME) == NULL) {
+        free(pathname_dir);
+        free(old_dirname);
+        return NULL;
+    }
+    if(n == 0) n = INT_MAX;
+
+    while(!quit)
+    {
+        if(chdir(pathname_dir) == -1) {
+            free(pathname_dir);
+            free(old_dirname);
+            return NULL;
+        }
+        if((d = opendir(".")) == NULL) {
+            if(chdir(old_dirname) == -1) perror("chdir");
+            destroyQueue(&subDir, free);
+            free(pathname_dir);
+            free(old_dirname);
+            return NULL;
+        }
+        while(((errno = 0, dir_point = readdir(d)) != NULL) && (i<(n+2)))
+        {
+            /** Analizzo tutti i file e sottocartelle presenti ad esclusione di "." e ".." **/
+            if(stat(dir_point->d_name, &buf) == -1) {
+                closedir(d);
+                if(chdir(old_dirname) == -1) perror("chdir");
+                destroyQueue(&subDir, free);
+                free(pathname_dir);
+                free(old_dirname);
+                return NULL;
+            }
+            /**
+             * Se l'oggetto puntato è una sottocartella diversa da "." e ".."
+             * allora la salvo per una probabile successiva sua analisi
+             */
+            if(S_ISDIR(buf.st_mode) && (strncmp(dir_point->d_name, ".", strnlen(dir_point->d_name, MAX_PATHNAME)) != 0) && (strncmp(dir_point->d_name, "..", strnlen(dir_point->d_name, MAX_PATHNAME)) != 0)) {
+                if((queue_el = (char *) calloc(strnlen(dir_point->d_name, MAX_PATHNAME)+1, sizeof(char))) == NULL) {
+                    closedir(d);
+                    destroyQueue(&subDir, free);
+                    if(chdir(old_dirname) == -1) perror("chdir");
+                    free(pathname_dir);
+                    free(old_dirname);
+                    return NULL;
+                }
+                strncpy(queue_el, dir_point->d_name, strnlen(dir_point->d_name, MAX_PATHNAME)+1);
+                if((subDir = insertIntoQueue(subDir, queue_el, (strnlen(queue_el, MAX_PATHNAME)+1)*sizeof(char))) == NULL) {
+                    free(pathname_dir);
+                    free(queue_el);
+                    destroyQueue(&subDir, free);
+                    closedir(d);
+                    if(chdir(old_dirname) == -1) perror("chdir");
+                    free(old_dirname);
+                    return NULL;
+                }
+                i++;
+            } else if(S_ISREG(buf.st_mode)) { // Se l'oggetto puntato è un file allora lo salvo nella lista da inviare successivamente
+                if((new_tmp = (char **) realloc(list, i*sizeof(char *))) == NULL) {
+                    size_t j=0;
+                    destroyQueue(&subDir, free);
+                    while(list[j] != NULL)
+                        free(list[j++]);
+                    free(list);
+
+                    closedir(d);
+                    if(chdir(old_dirname) == -1) perror("chdir");
+                    free(pathname_dir);
+                    free(old_dirname);
+                    return NULL;
+                }
+                list = new_tmp;
+                list[i-1] = NULL;
+                if((thisDir = (char *) calloc(strnlen(dir_point->d_name, MAX_PATHNAME) + 3, sizeof(char))) == NULL) {
+                    size_t j=0;
+                    destroyQueue(&subDir, free);
+                    while(list[j] != NULL)
+                        free(list[j++]);
+                    free(list);
+                    closedir(d);
+                    if(chdir(old_dirname) == -1) perror("chdir");
+                    free(pathname_dir);
+                    free(old_dirname);
+                    return NULL;
+                }
+                strncpy(thisDir, "./", 3);
+                if((pathname_file = abs_path(strncat(thisDir, dir_point->d_name, strnlen(dir_point->d_name, MAX_PATHNAME)))) == NULL) {
+                    size_t j=0;
+                    destroyQueue(&subDir, free);
+                    while(list[j] != NULL)
+                        free(list[j++]);
+                    free(list);
+                    closedir(d);
+                    if(chdir(old_dirname) == -1) perror("chdir");
+                    free(thisDir);
+                    free(pathname_dir);
+                    free(old_dirname);
+                    return NULL;
+                }
+                if((list[i-2] = (char *) calloc((strnlen(pathname_file, MAX_PATHNAME)+1), sizeof(char))) == NULL) {
+                    size_t j=0;
+                    destroyQueue(&subDir, free);
+                    while(list[j] != NULL)
+                        free(list[j++]);
+                    free(list);
+                    closedir(d);
+                    if(chdir(old_dirname) == -1) perror("chdir");
+                    free(pathname_dir);
+                    free(old_dirname);
+                    return NULL;
+                }
+                strncpy(list[i-2], pathname_file, strnlen(pathname_file, MAX_PATHNAME)+1);
+                free(thisDir);
+                free(pathname_file);
+                i++;
+            }
+        }
+
+        if(errno != 0) { //Controllo che sia uscito senza errori dal ciclo
+            size_t j=i-1;
+            destroyQueue(&subDir, free);
+            while(list[j] != NULL)
+                free(list[j++]);
+            free(list);
+            closedir(d);
+            if(chdir(old_dirname) == -1) perror("chdir");
+            free(pathname_dir);
+            free(old_dirname);
+            return NULL;
+        }
+
+        /** Esco che ho raggiunto il mio tetto massimo o non ho più file da visitare **/
+        if((i == (n+2)) || (subDir == NULL)) {
+            quit = 1;
+        }
+        if(closedir(d) == -1) {
+            size_t j=i-1;
+            destroyQueue(&subDir, free);
+            while(list[j] != NULL)
+                free(list[j++]);
+            free(list);
+            if(chdir(old_dirname) == -1) perror("chdir");
+            free(pathname_dir);
+            free(old_dirname);
+            return NULL;
+        }
+
+        // Se non ho finito controllo le sottocartelle
+        if(!quit) {
+            Queue *poped = NULL;
+            if((poped = deleteFirstElement(&subDir)) == NULL) {
+                size_t j=i-1;
+                destroyQueue(&subDir, free);
+                while(list[j] != NULL)
+                    free(list[j++]);
+                free(list);
+                if(chdir(old_dirname) == -1) perror("chdir");
+                free(pathname_dir);
+                free(old_dirname);
+                return NULL;
+            }
+            strncpy(pathname_dir, (char *) poped->data, poped->size);
+            free(poped->data);
+            free(poped);
+        }
+    }
+
+    destroyQueue(&subDir, free);
+    if(chdir(old_dirname) == -1) {
+        size_t j=0;
+        destroyQueue(&subDir, free);
+        while(list[j] != NULL)
+            free(list[j++]);
+        free(list);
+        free(old_dirname);
+        return NULL;
+    }
+    free(pathname_dir);
+    free(old_dirname);
+    errno = 0;
+    return list;
 }
 
 
@@ -210,60 +455,109 @@ static int writeFileIntoDisk(const char *pathname, const char *dirname, void *bu
  */
 int openConnection(const char *sockname, int msec, const struct timespec abstime) {
     /** Variabili **/
-    int error = 0, stop = 0, *status = NULL, connectRes = -1;
+    int error = 0, stop = 0, connectRes = -1, *status = NULL;
     pthread_t *timer = NULL;
     struct sockaddr_un sock_addr;
     struct timespec repeat;
     argTimer arg;
 
     /** Controllo parametri **/
+    errno = 0;
     if(sockname == NULL) { errno = EINVAL; return -1; }
     if(msec <= 0) { errno = EINVAL; return -1; }
 
     /** Tentativo di connessione al server **/
-    if((status = (int *) malloc(sizeof(int))) == NULL) return -1;
     if((fd_server = socket(AF_UNIX, SOCK_STREAM, 0)) == -1) {
-        free(status);
         return -1;
     }
     strncpy(sock_addr.sun_path, sockname, strnlen(sockname, MAX_PATHNAME)+1);
     sock_addr.sun_family = AF_UNIX;
     arg.stop = &stop;
     arg.timer = abstime;
+    arg.access = (pthread_mutex_t *) malloc(sizeof(pthread_mutex_t));
+    if(arg.access == NULL) {
+        return -1;
+    }
+    if((error = pthread_mutex_init(arg.access, NULL)) != 0) {
+        free(arg.access);
+        return -1;
+    }
     memset(&repeat, 0, sizeof(struct timespec)), repeat.tv_nsec = msec;
     if((timer = (pthread_t *) malloc(sizeof(pthread_t))) == NULL) {
-        free(status);
+        pthread_mutex_destroy(arg.access);
+        free(arg.access);
         return -1;
     }
     if((error = pthread_create(timer, NULL, timeout, (void *) &arg)) != 0) {
         free(timer);
-        free(status);
+        pthread_mutex_destroy(arg.access);
+        free(arg.access);
+        errno = error;
+        return -1;
+    }
+    if((error = pthread_mutex_lock(arg.access)) != 0) {
+        pthread_join(*timer, NULL);
+        free(timer);
+        pthread_mutex_destroy(arg.access);
+        free(arg.access);
         errno = error;
         return -1;
     }
     while((!stop) && ((connectRes = connect(fd_server, (struct sockaddr *) &sock_addr, sizeof(sock_addr))) == -1)) {
+        if((error = pthread_mutex_unlock(arg.access)) != 0) {
+            pthread_join(*timer, NULL);
+            free(timer);
+            pthread_mutex_destroy(arg.access);
+            free(arg.access);
+            errno = error;
+            return -1;
+        }
         if(nanosleep(&repeat, NULL) == -1) {
             pthread_join(*timer, NULL);
             free(timer);
-            free(status);
+            pthread_mutex_destroy(arg.access);
+            free(arg.access);
+            return -1;
+        }
+        if((error = pthread_mutex_lock(arg.access)) != 0) {
+            pthread_join(*timer, NULL);
+            free(timer);
+            pthread_mutex_destroy(arg.access);
+            free(arg.access);
+            errno = error;
             return -1;
         }
     }
+    if((error = pthread_mutex_unlock(arg.access)) != 0) {
+        pthread_join(*timer, NULL);
+        free(timer);
+        pthread_mutex_destroy(arg.access);
+        free(arg.access);
+        errno = error;
+        return -1;
+    }
 
     /** Termino il tentativo e riporto il risultato al client **/
-    if(((error = pthread_join(*timer, (void **) &status)) != 0) || ((status != NULL) && (*status != 0))) {
+    if(((error = pthread_join(*timer, (void **) &status)) != 0) || ((status != NULL) && (*status != 0) && (*status != EINTR))) {
         if(fd_server != -1) close(fd_server);
         if(status == NULL) errno = error;
         else errno = *status;
         free(timer);
+        pthread_mutex_destroy(arg.access);
+        free(arg.access);
         free(status);
         return -1;
     }
     free(timer);
-    free(status);
+    if((error = pthread_mutex_destroy(arg.access)) != 0) {
+        errno = error;
+        return -1;
+    }
+    free(arg.access);
     if(connectRes == -1) { errno = ETIMEDOUT; return -1; }
 
     strncpy(socketname, sockname, strnlen(sockname, MAX_PATHNAME));
+    errno = 0;
     return 0;
 }
 
@@ -276,12 +570,14 @@ int openConnection(const char *sockname, int msec, const struct timespec abstime
  */
 int closeConnection(const char *sockname) {
     /** Controllo parametri **/
+    errno = 0;
     if(sockname == NULL) { errno = EINVAL; return -1; }
 
     /** Chiusura della connessione **/
     if(strncmp(sockname, socketname, (size_t) fmax((double) MAX_PATHNAME, (double) strnlen(sockname, MAX_PATHNAME))) == 0) {
         if(close(fd_server) == -1) { return -1; }
-        memset(socketname, 0, (size_t) fmax((double) MAX_PATHNAME, (double) strnlen(sockname, MAX_PATHNAME)));
+        memset(socketname, 0, strnlen(sockname, MAX_PATHNAME));
+        errno = 0;
         return 0;
     }
 
@@ -301,23 +597,17 @@ int closeConnection(const char *sockname) {
 int openFile(const char *pathname, int flags) {
     /** Variabili **/
     int *result = NULL;
-    struct stat checkFile;
-    char *abs_pathname = NULL;
 
     /** Controllo parametri **/
+    errno = 0;
     if(pathname == NULL) { errno = EINVAL; return -1; }
     if(flags < 0) { errno = EINVAL; return -1; }
-    if(stat(pathname, &checkFile) == -1) { return -1; }
-    if(!S_ISREG(checkFile.st_mode)) { errno = ENOENT; return -1; }
 
     /** Invio richiesta al server e dei dati che richiede **/
-    if((abs_pathname = abs_path(pathname)) == NULL) {
-        return -1;
-    }
     if(sendMSG(fd_server, "openFile", 9*sizeof(char)) == -1) {
         return -1;
     }
-    if(sendMSG(fd_server, (void *) abs_pathname, (strnlen(abs_pathname, MAX_PATHNAME)+1)*sizeof(char)) == -1) {
+    if(sendMSG(fd_server, (void *) pathname, (strnlen(pathname, MAX_PATHNAME)+1)*sizeof(char)) == -1) {
         return -1;
     }
     if(sendMSG(fd_server, (void *) &flags, sizeof(int)) == -1) {
@@ -328,15 +618,14 @@ int openFile(const char *pathname, int flags) {
     if(receiveMSG(fd_server, (void **) &result, NULL) == -1) {
         return -1;
     }
-    if(*result == 0 || *result == 1)
-    {
+    if(*result == 0 || *result == 1) {
         free(result);
+        errno = 0;
         return 0;
     }
 
     errno = *result;
     free(result);
-    free(abs_pathname);
     return -1;
 }
 
@@ -352,9 +641,9 @@ int openFile(const char *pathname, int flags) {
 int readFile(const char *pathname, void **buf, size_t *size) {
     /** Variabili **/
     int *existFile = NULL;
-    char *abs_pathname = NULL;
 
     /** Controllo parametri **/
+    errno = 0;
     if(pathname == NULL) { errno = EINVAL; return -1; }
     if(size == NULL) { errno = EINVAL; return -1; }
 
@@ -364,10 +653,7 @@ int readFile(const char *pathname, void **buf, size_t *size) {
     }
 
     /** Mando il pathname e ricevo risposta **/
-    if((abs_pathname = abs_path(pathname)) == NULL) {
-        return -1;
-    }
-    if(sendMSG(fd_server, (void *) abs_pathname, (strnlen(abs_pathname, MAX_PATHNAME)+1)*sizeof(char)) <= 0) {
+    if(sendMSG(fd_server, (void *) pathname, (strnlen(pathname, MAX_PATHNAME)+1)*sizeof(char)) <= 0) {
         return -1;
     }
     if(receiveMSG(fd_server, (void **) &existFile, NULL) <= 0) {
@@ -375,15 +661,18 @@ int readFile(const char *pathname, void **buf, size_t *size) {
     }
     if((*existFile) != 0) {
         errno = *existFile;
+        free(existFile);
         return -1;
     }
 
     /** In caso affermativo di risposta ricevo il contenuto del file **/
     if(receiveMSG(fd_server, buf, size) <= 0) {
+        free(existFile);
         return -1;
     }
 
-    free(abs_pathname);
+    free(existFile);
+    errno = 0;
     return 0;
 }
 
@@ -403,10 +692,8 @@ int readNFiles(int N, const char *dirname) {
     char *pathname = NULL;
     size_t size = -1;
 
-    /** Controllo parametri **/
-    if(dirname == NULL) { errno = EINVAL; return -1; }
-
     /** Invio richiesta **/
+    errno = 0;
     if(sendMSG(fd_server, "readNFiles", 11* sizeof(char)) <= 0) {
         return -1;
     }
@@ -420,32 +707,45 @@ int readNFiles(int N, const char *dirname) {
     }
     if(*res != 0) {
         errno = *res;
+        free(res);
         return -1;
     }
     if(receiveMSG(fd_server, (void **) &res, NULL) <= 0) {
+        free(res);
         return -1;
     }
-    printf("--> %d\n", *res);
     while(*res != 0) {
-        printf("AOOOO");
         numReads++;
         if(receiveMSG(fd_server, (void **) &pathname, NULL) <= 0) {
+            if(buf != NULL) free(buf);
+            if(pathname != NULL) free(pathname);
+            if(res != NULL) free(res);
             return -1;
         }
         if(receiveMSG(fd_server, (void **) &buf, &size) <= 0) {
+            if(buf != NULL) free(buf);
+            if(pathname != NULL) free(pathname);
+            if(res != NULL) free(res);
             return -1;
         }
-        printf("%s\n", pathname);
-        if(writeFileIntoDisk(pathname, dirname, buf, size) == -1) {
-            printf("Eccolo\n");
+        if((dirname != NULL) && (writeFileIntoDisk(pathname, dirname, buf, size) == -1)) {
+            if(buf != NULL) free(buf);
+            if(pathname != NULL) free(pathname);
+            if(res != NULL) free(res);
             return -1;
         }
-        printf("qaaa");
         if(receiveMSG(fd_server, (void **) &res, NULL) <= 0) {
+            if(buf != NULL) free(buf);
+            if(pathname != NULL) free(pathname);
+            if(res != NULL) free(res);
             return -1;
-        };
+        }
     }
 
+    if(buf != NULL) free(buf);
+    if(pathname != NULL) free(pathname);
+    if(res != NULL) free(res);
+    errno = 0;
     return numReads;
 }
 
@@ -465,6 +765,7 @@ int writeFile(const char *pathname, const char *dirname) {
     size_t dimBuf = -1;
 
     /** Controllo parametri **/
+    errno = 0;
     if(pathname == NULL) { errno = EINVAL; return -1; }
 
     /** Invio la richiesta al server **/
@@ -473,39 +774,59 @@ int writeFile(const char *pathname, const char *dirname) {
     }
 
     /** Mando il pathname del file da aggiungere **/
-    // Prima mando il pathname, controllo che l'aggiunta del file vuoto non
-    // abbia causato memorymiss; infine controllo la correttezza dell'aggiunta
     if(sendMSG(fd_server, (void *) pathname, sizeof(char)*(strnlen(pathname, MAX_PATHNAME)+1)) <= 0) {
         return -1;
     }
     if(receiveMSG(fd_server, (void **) &result, NULL) <= 0) {
         return -1;
     }
-    printf("rwsult: %d\n", *result);
     while(*result != 0) {
-        printf("Ricevo\n");
         if(receiveMSG(fd_server, (void **) &fileToWrite, NULL) <= 0) {
+            if(buf != NULL) free(buf);
+            if(fileToWrite != NULL) free(fileToWrite);
+            if(result != NULL) free(result);
             return -1;
         }
         if(receiveMSG(fd_server, &buf, &dimBuf) <= 0) {
+            if(buf != NULL) free(buf);
+            if(fileToWrite != NULL) free(fileToWrite);
+            if(result != NULL) free(result);
             return -1;
         }
-        if((dirname != NULL) && (writeFileIntoDisk(fileToWrite, dirname, buf, dimBuf) == -1)) {
+        if((dirname != NULL) && (dimBuf != 0) && (writeFileIntoDisk(fileToWrite, dirname, buf, dimBuf) == -1)) {
+            if(buf != NULL) free(buf);
+            if(fileToWrite != NULL) free(fileToWrite);
+            if(result != NULL) free(result);
             return -1;
         }
+        if(buf != NULL) free(buf);
+        if(fileToWrite != NULL) free(fileToWrite);
+        if(result != NULL) free(result);
         if(receiveMSG(fd_server, (void **) &result, NULL) <= 0) {
+            if(buf != NULL) free(buf);
+            if(fileToWrite != NULL) free(fileToWrite);
+            if(result != NULL) free(result);
             return -1;
         }
     }
-    printf("rwsult2222: %d\n", *result);
     if(receiveMSG(fd_server, (void **) &result, NULL) <= 0) {
+        free(buf);
+        free(fileToWrite);
+        free(result);
         return -1;
     }
     if(*result != 0) {
         errno = *result;
+        if(buf != NULL) free(buf);
+        if(fileToWrite != NULL) free(fileToWrite);
+        if(result != NULL) free(result);
         return -1;
     }
 
+    if(buf != NULL) free(buf);
+    if(fileToWrite != NULL) free(fileToWrite);
+    if(result != NULL) free(result);
+    errno = 0;
     return 0;
 }
 
@@ -522,10 +843,12 @@ int writeFile(const char *pathname, const char *dirname) {
 int appendToFile(const char *pathname, void *buf, size_t size, const char *dirname) {
     /** Variabili **/
     char *fileToWrite = NULL;
-    int *result = NULL;
+    void *bufKick = NULL;
+    int *result = NULL, res = 0;
     size_t dimBuf;
 
     /** Controllo parametri **/
+    errno = 0;
     if(pathname == NULL) { errno = EINVAL; return -1; }
     if(buf == NULL) { errno = EINVAL; return -1; }
     if(size <= 0) { errno = EINVAL; return -1; }
@@ -549,39 +872,63 @@ int appendToFile(const char *pathname, void *buf, size_t size, const char *dirna
     }
     while(*result != 0) {
         if(receiveMSG(fd_server, (void **) &fileToWrite, NULL) <= 0) {
+            if(bufKick != NULL) free(bufKick);
+            if(fileToWrite != NULL) free(fileToWrite);
+            if(result != NULL) free(result);
             return -1;
         }
-        if(receiveMSG(fd_server, &buf, &dimBuf) <= 0) {
+        if(receiveMSG(fd_server, &bufKick, &dimBuf) <= 0) {
+            if(bufKick != NULL) free(bufKick);
+            if(fileToWrite != NULL) free(fileToWrite);
+            if(result != NULL) free(result);
             return -1;
         }
-        if((dirname != NULL) && (writeFileIntoDisk(fileToWrite, dirname, buf, dimBuf) == -1)) {
+        if((dirname != NULL) && (dimBuf != 0) && (writeFileIntoDisk(fileToWrite, dirname, bufKick, dimBuf) == -1)) {
+            if(bufKick != NULL) free(bufKick);
+            if(fileToWrite != NULL) free(fileToWrite);
+            if(result != NULL) free(result);
             return -1;
         }
         if(receiveMSG(fd_server, (void **) &result, NULL) <= 0) {
+            if(bufKick != NULL) free(bufKick), bufKick = NULL;
+            if(fileToWrite != NULL) free(fileToWrite);
+            if(result != NULL) free(result);
             return -1;
         }
     }
+    printf("JOIOEFWFIOJWEJWEOJWEFEWIOJFEIOFEWJFEWFEWJFWEIOFEWJFEEWFWEJ\n\n\n\n\n\n\n");
 
     /** Ricevo la risposta e valuto l'esito **/
     if(receiveMSG(fd_server, (void **) &result, NULL) <= 0) {
+        if(bufKick != NULL) free(bufKick);
+        if(fileToWrite != NULL) free(fileToWrite);
+        if(result != NULL) free(result);
         return -1;
     }
+    printf("99999999999999999999999999999999999999999999999999999999999999999999999\n\n\n\n\n\n\n");
 
-    return *result;
+    res = *result;
+    if(bufKick != NULL) free(bufKick), bufKick = NULL;
+    if(fileToWrite != NULL) free(fileToWrite);
+    if(result != NULL) free(result);
+    errno = 0;
+    return res;
 }
 
 
 /**
- * @brief
- * @fun
- * @param pathname
- * @return
+ * @brief               Effettua la lock di 'pathname' nel server
+ * @fun                 lockFile
+ * @param pathname      Pathname del file da lockare
+ * @return              Ritorna 0 in caso di successo; -1 in caso di errori
+ *                      e setta errno
  */
 int lockFile(const char *pathname) {
     /** Variabili **/
     int *res = NULL;
 
     /** Controllo parametri **/
+    errno = 0;
     if(pathname == NULL) { errno = EINVAL; return -1; }
 
     /** Invio richiesta al server **/
@@ -596,19 +943,31 @@ int lockFile(const char *pathname) {
     if(receiveMSG(fd_server, (void **) &res, NULL) <= 0) {
         return -1;
     }
-    if(*res == 0)
+    if(*res == 0) {
+        free(res);
+        errno = 0;
         return 0;
+    }
 
     errno = *res;
+    free(res);
     return -1;
 }
 
 
+/**
+ * @brief               Effettua la unlock di 'pathname' nel server
+ * @fun                 unlockFile
+ * @param pathname      Pathname del file da unlockare
+ * @return              Ritorna 0 in caso di successo; -1 in caso di errori
+ *                      e setta errno
+ */
 int unlockFile(const char *pathname) {
     /** Variabili **/
     int *res = NULL;
 
     /** Controllo parametri **/
+    errno = 0;
     if(pathname == NULL) { errno = EINVAL; return -1; }
 
     /** Invio richiesta al server **/
@@ -623,14 +982,25 @@ int unlockFile(const char *pathname) {
     if(receiveMSG(fd_server, (void **) &res, NULL) <= 0) {
         return -1;
     }
-    if(*res == 0)
+    if(*res == 0) {
+        free(res);
+        errno = 0;
         return 0;
+    }
 
     errno = *res;
+    free(res);
     return -1;
 }
 
 
+/**
+ * @brief               Chiude un file nel server
+ * @fun                 closeFile
+ * @param pathname      Pathname del file da chiudere
+ * @return              In caso di successo ritorna 0; altrimenti
+ *                      ritorna -1 e setta errno
+ */
 int closeFile(const char *pathname) {
     /** Variabili **/
     int *res = NULL;
@@ -654,10 +1024,11 @@ int closeFile(const char *pathname) {
         errno = *res;
         free(res);
         return -1;
-    } else {
-        free(res);
-        return 0;
     }
+
+    free(res);
+    errno = 0;
+    return 0;
 }
 
 
@@ -672,6 +1043,7 @@ int removeFile(const char *pathname) {
     int *res = NULL;
 
     /** Controllo variabili **/
+    errno = 0;
     if(pathname == NULL) { errno = EINVAL; return -1; }
 
     /** Invio richiesta al server **/
@@ -687,9 +1059,12 @@ int removeFile(const char *pathname) {
         return -1;
     }
     if(*res == 0) {
+        free(res);
+        errno = 0;
         return 0;
-    } else {
-        errno = *res;
-        return -1;
     }
+
+    free(res);
+    errno = *res;
+    return -1;
 }

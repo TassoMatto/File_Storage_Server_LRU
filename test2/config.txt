@@ -1,21 +1,22 @@
 #
 #   File di config per FILE-STORAGE-SERVER
+#   Test n°2
 #
 
 #   Numero di Thread Worker da attivare
 numeroThreadWorker=4
 
 #   Memoria Max
-maxMB=1200
+maxMB=1
 
 #   Nome del socket
 socket=socket.sk
 
 #   Numero massimo di file
-maxNumeroFileCaricabili=3
+maxNumeroFileCaricabili=10
 
 #   Numero massimo di utenti
 maxUtentiConnessi=10
 
 #   Numero massimo di utenti che possono aprire un file contemporaneamente
-maxUtentiPerFile=3
+maxUtentiPerFile=10

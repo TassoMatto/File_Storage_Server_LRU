@@ -3,6 +3,7 @@
  * @brief               Funzioni di diverse utilita'
  * @author              Simone Tassotti
  * @date                23/12/2021
+ * @finish              25/01/2022
  */
 
 #ifndef FILE_STORAGE_SERVER_LRU_UTILS_H
@@ -28,9 +29,20 @@
     long isNumber(const char*);
 
 
+    /**
+     * brief                Manda un messaggio alla server sulla socket indicata
+     * @fun                 sendMSG
+     * @return              Ritorna il numero di byte scritti o -1 in caso di errore [setta errno]
+     */
     ssize_t sendMSG(int, void *, size_t);
 
 
+    /**
+     * @brief               Riceve un messaggio dalla socket indicata
+     * @fun                 receiveMSG
+     * @return              In caso di successo ritorna il numero di bytes letti; altrimenti
+     *                      -1 [setta errno]
+     */
     ssize_t receiveMSG(int, void **, size_t *);
 
 

@@ -3,6 +3,7 @@
  * @brief               Gestione di una coda
  * @author              Simone Tassotti
  * @date                24/12/2021
+ * @finish              25/01/2022
  */
 
 #include "queue.h"
@@ -22,12 +23,18 @@ Queue* insertIntoQueue(Queue *q, void *data, size_t size) {
     void *dataCopy = NULL;
 
     /** Controllo Parametri **/
+    errno = 0;
     if(data == NULL) { errno = EINVAL; return NULL; }
     if(size <= 0) { errno = EINVAL; return NULL; }
 
     /** Aggiungo l'elemento in coda **/
-    if((new = (Queue *) malloc(sizeof(Queue))) == NULL) return NULL;
-    if((dataCopy = malloc(size)) == NULL) { free(new); return NULL; }
+    if((new = (Queue *) malloc(sizeof(Queue))) == NULL) {
+        return NULL;
+    }
+    if((dataCopy = malloc(size)) == NULL) {
+        free(new);
+        return NULL;
+    }
     memcpy(dataCopy, data, size);
     new->next = NULL, new->data = dataCopy, new->size = size;
     if(q == NULL) return new;   // Se la lista inizialmente e' vuota ritorno il valore direttamente
@@ -36,6 +43,8 @@ Queue* insertIntoQueue(Queue *q, void *data, size_t size) {
         corr = corr->next;
     corr->next = new;
 
+    /** Elemento aggiunto **/
+    errno = 0;
     return q;
 }
 
@@ -50,16 +59,21 @@ Queue* insertIntoQueue(Queue *q, void *data, size_t size) {
  */
 int elementExist(Queue *q, void *data, Compare_Fun fun) {
     /** Controllo parametri **/
+    errno = 0;
     if(q == NULL) { errno = EINVAL; return -1; }
     if(data == NULL) { errno = EINVAL; return -1; }
     if(fun == NULL) { errno = EINVAL; return -1; }
 
     /** Inizio la ricerca dell'elemento **/
     while(q != NULL) {
-        if(fun(data, q->data)) return 1;
+        if(fun(data, q->data)) {
+            errno = 0;
+            return 1;
+        }
         q = q->next;
     }
 
+    errno = 0;
     return 0;
 }
 
@@ -74,28 +88,44 @@ int elementExist(Queue *q, void *data, Compare_Fun fun) {
  *                      cancellato [in caso di errore setta anche errno]
  */
 void* deleteElementFromQueue(Queue **q, void *data, Compare_Fun fun) {
+    /** Variabili **/
+    Queue *corr = (*q);
+    Queue *prec = NULL;
+
     /** Controllo parametri **/
+    errno = 0;
     if(data == NULL) { errno = EINVAL; return NULL; }
     if(fun == NULL) { errno = EINVAL; return NULL; }
 
-    if(*q == NULL) return NULL;
-
-    /** Cancello l'elemento se esiste **/
-    if(fun(data, (*q)->data)) {
-        /** Variabili **/
-        Queue *del = NULL;
-        void *delData = NULL;
-
-        /** Tolgo elemento dalla coda **/
-        del = (*q);
-        (*q) = (*q)->next;
-        delData = del->data;
-        free(del);
-
-        return delData;
+    /** Lista vuota **/
+    if(*q == NULL) {
+        return NULL;
     }
 
-    return deleteElementFromQueue(&((*q)->next), data, fun);
+    /** Cancello l'elemento se esiste **/
+    while(corr != NULL) {
+        if(fun(data, corr->data)) {
+            /** Variabili **/
+            void *delData = NULL;
+
+            if(prec == NULL) {
+                (*q) = corr->next;
+                delData = corr->data;
+            } else {
+                prec->next = corr->next;
+                delData = corr->data;
+            }
+
+            free(corr);
+            errno = 0;
+            return delData;
+        }
+        prec = corr;
+        corr = corr->next;
+    }
+
+    errno = EINVAL;
+    return NULL;
 }
 
 
@@ -111,6 +141,7 @@ void* deleteFirstElement(Queue **q) {
     Queue *del = NULL;
 
     /** Controllo parametri **/
+    errno = 0;
     if(*q == NULL) { errno = EINVAL; return NULL; }
 
     /** Cancello il primo elemento **/
@@ -119,6 +150,7 @@ void* deleteFirstElement(Queue **q) {
     delData = del->data;
     free(del);
 
+    errno = 0;
     return delData;
 }
 
@@ -138,7 +170,6 @@ void destroyQueue(Queue **q, Free_Data destroy) {
         (*q) = (*q)->next;
         destroy(del->data);
         free(del);
-        printf("Elimino elemento coda\n");
     }
 
     *q = NULL;

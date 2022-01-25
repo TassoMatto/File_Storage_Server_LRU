@@ -3,13 +3,17 @@
  * @brief               Gestione di un pool di thread
  * @author              Simone Tassotti
  * @date                24/12/2021
+ * @finish              25/01/2022
  */
+
 
 #ifndef FILE_STORAGE_SERVER_LRU_THREADPOOL_H
 
     #define FILE_STORAGE_SERVER_LRU_THREADPOOL_H
 
-    #define _POSIX_C_SOURCE 2001112L
+    #ifndef _POSIX_C_SOURCE
+        #define _POSIX_C_SOURCE 2001112L
+    #endif
     #include <stdlib.h>
     #include <stdio.h>
     #include <queue.h>
@@ -34,7 +38,7 @@
      * @param isEmpty                   Variabile per gestire il controllo di riempimento della coda
      * @param log                       File di log in caso tracciamento
      */
-    typedef struct {
+    typedef struct{
         int shutdown;
         int hardST;
 

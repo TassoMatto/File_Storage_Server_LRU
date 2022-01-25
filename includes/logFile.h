@@ -3,6 +3,7 @@
  * @brief               Gestione di un file di log di un server
  * @author              Simone Tassotti
  * @date                22/12/2021
+ * @finish              25/01/2022
  */
 
 #ifndef FILE_STORAGE_SERVER_LRU_LOGFILE_H
@@ -11,7 +12,10 @@
 
     #define MAX_STRING_TIME 26
 
-    #define _POSIX_C_SOURCE 2001112L
+    #ifndef _POSIX_C_SOURCE
+        #define _POSIX_C_SOURCE 2001112L
+    #endif
+
     #include <stdlib.h>
     #include <stdio.h>
     #include <string.h>

@@ -1,9 +1,9 @@
 /**
  * @project             FILE_STORAGE_SERVER
- * @brief               Gestione di un file in memoria virtuale
+ * @brief               Funzioni di gestione di un file in memoria virtuale
  * @author              Simone Tassotti
  * @date                28/12/2021
- * @finish              15/01/2022
+ * @finish              25/01/2022
  */
 
 
@@ -37,12 +37,12 @@ static int compare_fd(const void *v1, const void *v2) {
  * @fun                 updateTime
  * @param file          File su cui aggiornare il tempo di ultimo utilizzo
  */
-static void updateTime(myFile *file) {
+void updateTime(myFile *file) {
     /** Variabili **/
     struct timeval timing;
 
     /** Aggiorno il tempo del file **/
-    if(gettimeofday(&timing, NULL) == -1) {
+    if(gettimeofday(&timing, NULL) != -1) {
         memcpy(&(file->time), &timing, sizeof(struct timeval));
     }
 }
@@ -64,6 +64,7 @@ myFile* createFile(const char *pathname, unsigned int maxUtentiConnessiAlFile, p
     myFile *file = NULL;
 
     /** Controllo parametri **/
+    errno = 0;
     if(pathname == NULL) { errno = EINVAL; return NULL; }
     if(maxUtentiConnessiAlFile == 0) { errno = EINVAL; return NULL; }
 
@@ -77,18 +78,22 @@ myFile* createFile(const char *pathname, unsigned int maxUtentiConnessiAlFile, p
         return NULL;
     }
     strncpy(file->pathname, pathname, strnlen(pathname, MAX_PATHNAME)+1);
-    if(lockAccessFile != NULL) {
+    if(lockAccessFile != NULL) {    // Caso in cui passo una lock per accesso in mutua esclusione
         file->lockAccessFile = lockAccessFile;
     }
     if((file->utentiConnessi =  (int *) calloc(maxUtentiConnessiAlFile, sizeof(unsigned int))) == NULL) {
         free(file->pathname);
-        free(file); return NULL;
+        free(file);
+        return NULL;
     }
     memset(file->utentiConnessi, -1, maxUtentiConnessiAlFile*sizeof(unsigned int));
     file->maxUtentiConnessiAlFile = maxUtentiConnessiAlFile;
     file->utenteLock = -1;
-    updateTime(file);
 
+
+    /** File creato correttamente **/
+    updateTime(file);
+    errno = 0;
     return file;
 }
 
@@ -108,6 +113,7 @@ size_t addContentToFile(myFile *file, void *toAdd, size_t sizeToAdd) {
     void *copyBuffer = NULL;
 
     /** Controllo parametri **/
+    errno = 0;
     if(file == NULL) { errno = EINVAL; return -1; }
     if(toAdd == NULL) { errno = EINVAL; return -1; }
     if(sizeToAdd <= 0) { errno = EINVAL; return -1; }
@@ -122,7 +128,9 @@ size_t addContentToFile(myFile *file, void *toAdd, size_t sizeToAdd) {
     file->size += sizeToAdd;
     file->buffer = copyBuffer;
 
+    /** Contento aggiornato **/
     updateTime(file);
+    errno=0;
     return file->size;
 }
 
@@ -140,13 +148,19 @@ int fileIsOpenedFrom(myFile *file, int fd) {
     int index = -1;
 
     /** Controllo parametri **/
+    errno = 0;
     if(file == NULL) { errno = EINVAL; return -1; }
     if(fd <= 0) { errno = EINVAL; return -1; }
 
     /** Controllo apertura del file **/
-    while(++index < file->numeroUtentiConnessi)
-        if((file->utentiConnessi)[index] == fd) return 1;
+    while(++index < file->numeroUtentiConnessi) {
+        if((file->utentiConnessi)[index] == fd) {
+            errno = 0;
+            return 1;
+        }
+    }
 
+    errno = 0;
     return 0;
 }
 
@@ -165,6 +179,7 @@ int fileIsLockedFrom(myFile *file, int fd) {
     int *fdSearch = NULL;
 
     /** Controllo parametri **/
+    errno = 0;
     if(file == NULL) { errno = EINVAL; return -1; }
     if(fd <= 0) { errno = EINVAL; return -1; }
     if((fdSearch = (int *) malloc(sizeof(int))) == NULL) {
@@ -179,7 +194,11 @@ int fileIsLockedFrom(myFile *file, int fd) {
         return 0;
     }
     res = elementExist(file->utentiLocked, fdSearch, compare_fd);
-    if(res == 1) { free(fdSearch); return 1; }
+    if(res == 1) {
+        free(fdSearch);
+        errno = 0;
+        return 1;
+    }
 
     free(fdSearch);
     errno = 0;
@@ -197,6 +216,7 @@ int fileIsLockedFrom(myFile *file, int fd) {
  */
 int openFile(myFile *file, int fd) {
     /** Controllo parametri **/
+    errno = 0;
     if(file == NULL) { errno = EINVAL; return -1; }
     if(fd <= 0) { errno = EINVAL; return -1; }
 
@@ -205,11 +225,14 @@ int openFile(myFile *file, int fd) {
         errno = EMLINK;
         return -1;
     }
-    if(fileIsOpenedFrom(file, fd)) return 1;
+    if(fileIsOpenedFrom(file, fd)) {
+        errno = 0;
+        return 1;
+    }
 
+    /** Apro il file **/
     (file->utentiConnessi)[file->numeroUtentiConnessi] = fd;
     (file->numeroUtentiConnessi)++;
-
     updateTime(file);
     errno = 0;
     return 0;
@@ -229,6 +252,7 @@ int closeFile(myFile *file, int fd) {
     int index = -1;
 
     /** Controllo parametri **/
+    errno = 0;
     if(file == NULL) { errno = EINVAL; return -1; }
     if(fd <= 0) { errno = EINVAL; return -1; }
 
@@ -240,10 +264,15 @@ int closeFile(myFile *file, int fd) {
     while(++index < file->numeroUtentiConnessi) {
         if((file->utentiConnessi)[index] == fd) {
             (file->numeroUtentiConnessi)--;
+            if(file->numeroUtentiConnessi == 0) {
+                (file->utentiConnessi)[0] = -1;
+                updateTime(file);
+                errno = 0;
+                return 0;
+            }
             int fd_save = (file->utentiConnessi)[file->numeroUtentiConnessi];
             (file->utentiConnessi)[file->numeroUtentiConnessi] = -1;
             (file->utentiConnessi)[index] = fd_save;
-
             updateTime(file);
             errno = 0;
             return 0;
@@ -271,6 +300,7 @@ int lockFile(myFile *file, int fd) {
     int *fdInsert = NULL, res = 0;
 
     /** Controllo parametri **/
+    errno = 0;
     if(file == NULL) { errno = EINVAL; return -1; }
     if(fd <= 0) { errno = EINVAL; return -1; }
 
@@ -289,11 +319,13 @@ int lockFile(myFile *file, int fd) {
     else res = 1;
     if((file->utentiLocked = insertIntoQueue(file->utentiLocked, fdInsert, sizeof(int))) == NULL) {
         file->utenteLock = -1;
-        free(fdInsert); return -1;
+        free(fdInsert);
+        return -1;
     }
 
     free(fdInsert);
     updateTime(file);
+    errno = 0;
     return res;
 }
 
@@ -312,6 +344,7 @@ int unlockFile(myFile *file, int fd) {
     void *delete = NULL;
 
     /** Controllo parametri **/
+    errno = 0;
     if(file == NULL) { errno = EINVAL; return -1; }
     if(fd <= 0) { errno = EINVAL; return -1; }
 
@@ -329,11 +362,12 @@ int unlockFile(myFile *file, int fd) {
         errno = EBADF;
         return -1;
     }
-    if((file->utentiLocked != NULL) && (file->utenteLock == *(int *) delete)) file->utenteLock = *(int *) file->utentiLocked->data;
+    if((delete != NULL) && (file->utenteLock == *(int *) delete) && (file->utentiLocked != NULL)) file->utenteLock = *(int *) (file->utentiLocked)->data;
     else if(file->utentiLocked == NULL) file->utenteLock = -1;
 
     updateTime(file);
     free(delete);
+    errno = 0;
     if((file->utentiLocked == NULL) || (retValue == file->utenteLock)) return 0;
     else return file->utenteLock;
 }
@@ -352,9 +386,8 @@ void destroyFile(myFile **file) {
     if((*file)->pathname != NULL) free((*file)->pathname);
     if((*file)->buffer != NULL) free((*file)->buffer);
     if((*file)->utentiConnessi != NULL) free((*file)->utentiConnessi);
-    printf("cancjjjjjjjj\n");
     destroyQueue(&((*file)->utentiLocked), free);
-    free((*file));
+    free(*file);
 
     *file = NULL;
 }

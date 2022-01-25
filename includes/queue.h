@@ -3,6 +3,7 @@
  * @brief               Gestione di una coda
  * @author              Simone Tassotti
  * @date                24/12/2021
+ * @finish              25/01/2022
  */
 
 #ifndef FILE_STORAGE_SERVER_LRU_QUEUE_H
@@ -51,15 +52,17 @@
     Queue* insertIntoQueue(Queue *, void *, size_t);
 
 
+    /**
+     * @brief               Cerca un elemento nella coda
+     * @fun                 elementExist
+     * @return              (1) se l'elemento e' stato trovato, (0) se non ho trovato niente; (-1) [setta errno]
+     */
     int elementExist(Queue *, void *, Compare_Fun);
 
 
     /**
      * @brief               Funzione che elimina un determinato elemento dalla funzione
      * @fun                 deleteElementFromQueue
-     * @param q             Coda
-     * @param data          Elemento per cercare l'oggetto da eliminare
-     * @param fun           Funzione di comparazione tra elementi
      * @return              Ritorna l'elemento della lista da cancellare; altrimenti ritorna NULL se nessun elemento e' stato
      *                      cancellato [in caso di errore setta anche errno]
      */

@@ -1,9 +1,9 @@
 /**
  * @project             FILE_STORAGE_SERVER
- * @brief               Gestione di un file in memoria virtuale
+ * @brief               Funzioni di gestione di un file in memoria virtuale
  * @author              Simone Tassotti
  * @date                28/12/2021
- * @finish              15/01/2022
+ * @finish              25/01/2022
  */
 
 #ifndef FILE_STORAGE_SERVER_LRU_FILE_H
@@ -57,6 +57,13 @@
 
         struct timeval time;
     } myFile;
+
+
+    /**
+     * @brief               Aggiorna il tempo di ultimo utilizzo
+     * @fun                 updateTime
+     */
+    void updateTime(myFile *);
 
 
     /**
