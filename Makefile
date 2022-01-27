@@ -39,7 +39,7 @@ test1	:	$(SS) $(CL)
 test2	:	$(SS) $(CL)
 	@clear
 	@echo "TEST N°2 SUL FILE_STORAGE_SERVER\n\n\n"
-	@{ $(SS) ./test2/config.txt & } && ./test2/startClient.sh $$!
+	@{ valgrind --leak-check=full --show-leak-kinds=all --track-origins=yes --track-fds=yes $(SS) ./test2/config.txt & } && ./test2/startClient.sh $$!
 
 test3	:	$(SS) $(CL)
 	@clear

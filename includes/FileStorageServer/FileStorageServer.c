@@ -27,19 +27,21 @@
             if(strncmp(pathname, cache->LRU[next]->pathname, MAX_PATHNAME) == 0) { next++; continue; }                               \
             (cache->numeroMemoryMiss)++;                                                                                                        \
             numKick++;                                                                                                                          \
-            if((kickedFiles = (myFile **) realloc(kickedFiles, (numKick+1)*sizeof(myFile *))) == NULL) { free(copy); return NULL; }             \
-            if((ADD_FILE) && (error = pthread_mutex_lock(((cache->LRU)[next])->lockAccessFile)) != 0) {                                         \
-                pthread_mutex_unlock(cache->LRU_Access);                           \
-                errno = error;             \
-                destroyFile(&toAdd);\
-                free(copy);                                                                                                                     \
-                return kickedFiles;                                                                                                             \
+            if((kickedFiles = (myFile **) realloc(kickedFiles, (numKick+1)*sizeof(myFile *))) == NULL) { free(copy); return NULL; }         \
+            if((cache->LRU[next])->lockAccessFile != toAdd->lockAccessFile) {                      \
+                if((error = pthread_mutex_lock(((cache->LRU)[next])->lockAccessFile)) != 0) {                                         \
+                    pthread_mutex_unlock(cache->LRU_Access);                           \
+                    errno = error;             \
+                    destroyFile(&toAdd);\
+                    free(copy);                                                                                                                     \
+                    return kickedFiles;                                                                                                             \
+                }\
             }                              \
             kickedFiles[numKick-1] = (cache->LRU)[next];                                                                                           \
             (cache->LRU)[next] = (cache->LRU)[--(cache->fileOnline)];                                                                              \
             (cache->LRU)[(cache->fileOnline)] = NULL;                                                                                           \
             (cache->bytesOnline) -= (kickedFiles[numKick-1])->size;                                                                             \
-            if(traceOnLog(cache->log, "[ATTENZIONE]: File \"%s\" espulso dalla cache per \"%s\"\n", kickedFiles[numKick-1]->pathname, ((ADD_FILE == 0) ? "Troppi file nel server" : "Problemi di capacità")) == -1) { \
+            if(traceOnLog(cache->log, "[ATTENZIONE]: File \"%s\" espulso dalla cache per \"%s\"\n", kickedFiles[numKick-1]->pathname, ((ADD_FILE == 1) ? "Troppi file nel server" : "Problemi di capacità")) == -1) { \
                 pthread_mutex_unlock((kickedFiles[numKick-1])->lockAccessFile);                           \
                 pthread_mutex_unlock(cache->LRU_Access);                            \
                 destroyFile(&toAdd);\
@@ -53,14 +55,16 @@
                 destroyFile(&toAdd);\
                 free(copy);                                                                                                                     \
                 return kickedFiles;                                                                                                             \
-            }                                                                                                                                   \
-            if((ADD_FILE) && (error = pthread_mutex_unlock((kickedFiles[numKick-1])->lockAccessFile)) != 0) {                                                          \
-                pthread_mutex_unlock(cache->LRU_Access);                               \
-                errno = error;             \
-                free(copy);                                                                                                                     \
-                destroyFile(&toAdd);\
-                return kickedFiles;                                                                                                             \
-            }\
+            }                              \
+            if((kickedFiles[numKick-1])->lockAccessFile != toAdd->lockAccessFile) {\
+                if((error = pthread_mutex_unlock((kickedFiles[numKick-1])->lockAccessFile)) != 0) {                                                          \
+                    pthread_mutex_unlock(cache->LRU_Access);                               \
+                    errno = error;             \
+                    free(copy);                                                                                                                     \
+                    destroyFile(&toAdd);\
+                    return kickedFiles;                                                                                                             \
+                }                          \
+            }                               \
             kickedFiles[numKick] = NULL;                                                                                                        \
         }                                       \
     }while(0)
@@ -96,7 +100,6 @@ static void free_userLink(void *f) {
     uL = (userLink *) f;
 
     /** Dealloco **/
-    printf("CANCELLO USERLINK\n\n\n\n\n\n\n\n");
     free(uL->openFile);
     free(uL);
 }
@@ -123,28 +126,6 @@ static int findFileOnLRU(const void *v1, const void *v2) {
     return strncmp(p, (*f)->pathname, strnlen((*f)->pathname, MAX_PATHNAME));
 }
 
-//
-///**
-// * @brief           Ordinamento per fd degli utenti
-// * @fun             orderUsers
-// * @param v1        Primo utente da ordinare
-// * @param v2        Secondo utente da ordinare
-// * @return          Ritorna la differenza tra il primo e il secondo elemento
-// */
-//static int orderUsers(const void *v1, const void *v2) {
-//    /** Variabili **/
-//    Queue **q1 = NULL, **q2 = NULL;
-//
-//    /** Cast **/
-//    q1 = (Queue **)v1;
-//    q2 = (Queue **)v2;
-//    int fd1 = ((userLink *) (*q1)->data)->fd;
-//    int fd2 = ((userLink *) (*q2)->data)->fd;
-//
-//    /** Differenza **/
-//    return (fd1 - fd2);
-//}
-
 
 /**
  * @brief           Funzione per compare due utenti tramite fd
@@ -163,7 +144,6 @@ static int findUsers(const void *v1, const void *v2) {
     fd1 = *(int *) v1;
     fd2 = ((userLink *) (*q)->data)->fd;
 
-    printf("%d                           %d\n", fd1, fd2);
     /** Differenza **/
     return (fd1 - fd2);
 }
@@ -262,15 +242,15 @@ static void LRU_Update(myFile **LRU, unsigned int numElements) {
 
 
 /**
- * @brief                   Funzione che, a seconda delle casistiche, aggiunge/cancella i collegamenti
- *                          tra file e client
+ * @brief                   Funzione che gestisce le connessioni tra client e file
  * @fun                     linksManage
  * @param cache             Memoria cache
  * @param fd                Fd del client che dobbiamo gestire
  * @param cmp               Valore che vogliamo gestire insieme al client
- * @param link              Compito da eseguire
- * @param comp              Funzione di comparazionee
- * @return
+ * @param link              Tipo di gestione delle connessioni
+ * @param comp              Funzione di comparazione
+ * @return                  In caso di successo ritorna la lista dei collegamenti
+ *                          che si sono interrotti o NULL; in caso di errore [setta errno]
  */
 static Queue* linksManage(LRU_Memory *cache, int fd, void *cmp, int link, Compare_Fun comp) {
     /** Variabili **/
@@ -280,6 +260,7 @@ static Queue* linksManage(LRU_Memory *cache, int fd, void *cmp, int link, Compar
     Queue *del = NULL;
 
     /** Controllo parametri **/
+    errno = 0;
     if(cache == NULL) { errno = EINVAL; return NULL; }
     if(fd <= 0) { errno = EINVAL; return NULL; }
     if(link < 0 || link > 2) { errno = EINVAL; return NULL; }
@@ -290,11 +271,10 @@ static Queue* linksManage(LRU_Memory *cache, int fd, void *cmp, int link, Compar
         return NULL;
     }
     while(++i < cache->usersOnlineOpenFile) {
-        if(findUsers(&fd, (cache->usersConnected)+i) == 0) { traceOnLog(cache->log, "MA NON LO TROVO\n"); break; }
+        if(findUsers(&fd, (cache->usersConnected)+i) == 0) { break; }
     }
     if (link == 0) {
-        if(i >= cache->usersOnlineOpenFile) { traceOnLog(cache->log, "Nuovo cazzooooooo\n"), (cache->usersOnlineOpenFile)++; }
-        else {traceOnLog(cache->log, "VEcchio cazzooooooo\n"); }
+        if(i >= cache->usersOnlineOpenFile) { (cache->usersOnlineOpenFile)++; }
         if ((uL = (userLink *) malloc(sizeof(userLink))) == NULL) {
             pthread_mutex_unlock(cache->usersConnectedAccess);
             return NULL;
@@ -306,7 +286,6 @@ static Queue* linksManage(LRU_Memory *cache, int fd, void *cmp, int link, Compar
         }
         strncpy(uL->openFile, cmp, (strnlen(cmp, MAX_PATHNAME) + 1));
         uL->fd = fd;
-        traceOnLog(cache->log, "Differenza: %ld n", (strnlen(cmp, MAX_PATHNAME) + 1));
         if ((cache->usersConnected[i] = insertIntoQueue(cache->usersConnected[i], uL, sizeof(*uL))) == NULL) {
             pthread_mutex_unlock(cache->usersConnectedAccess);
             free(uL->openFile);
@@ -320,7 +299,6 @@ static Queue* linksManage(LRU_Memory *cache, int fd, void *cmp, int link, Compar
             errno = ENOENT;
             return NULL;
         }
-        traceOnLog(cache->log, "qualcosa tolgo\n");
         if((del = (Queue *) malloc(sizeof(Queue))) == NULL) {
             pthread_mutex_unlock(cache->usersConnectedAccess);
             return NULL;
@@ -348,7 +326,6 @@ static Queue* linksManage(LRU_Memory *cache, int fd, void *cmp, int link, Compar
             return NULL;
         }
 
-        traceOnLog(cache->log, "qualcosa tolgo idem\n");
         del = cache->usersConnected[i];
         (cache->usersOnlineOpenFile)--;
         if(cache->usersOnlineOpenFile == 0)
@@ -363,6 +340,7 @@ static Queue* linksManage(LRU_Memory *cache, int fd, void *cmp, int link, Compar
         errno = error;
     }
 
+    errno = 0;
     return del;
 }
 
@@ -382,6 +360,7 @@ Settings* readConfigFile(const char *configPathname) {
     Settings *serverMemory = NULL;
 
     /** Controllo parametri **/
+    errno = 0;
     if(configPathname == NULL) { errno = EINVAL; return NULL; }
     if((file = fopen(configPathname, "r")) == NULL) { errno = ENOENT; return NULL; }
 
@@ -431,6 +410,8 @@ Settings* readConfigFile(const char *configPathname) {
     free(buffer);
     fclose(file);
 
+    /** Ritorno le impostazioni del server **/
+    errno = 0;
     return serverMemory;
 }
 
@@ -448,6 +429,7 @@ LRU_Memory* startLRUMemory(Settings *set, serverLogFile *log) {
     LRU_Memory *mem = NULL;
 
     /** Controllo parametri **/
+    errno = 0;
     if(set == NULL) { errno = EINVAL; return NULL; }
     if((set->maxUtentiPerFile == 0) || (set->maxNumeroFileCaricabili == 0) || (set->maxMB == 0)) { errno = EINVAL; return NULL; }
 
@@ -585,15 +567,24 @@ LRU_Memory* startLRUMemory(Settings *set, serverLogFile *log) {
         }
     }
 
+    /** Ritorno la memoria cache **/
+    errno = 0;
     return mem;
 }
 
 
+/**
+ * @brief           Mi segnala il login di un client
+ * @fun             loginClient
+ * @param cache     Memoria cache
+ * @return          Ritorna 0 in caso di successo; -1 altrimenti [setta errno]
+ */
 int loginClient(LRU_Memory *cache) {
     /** Variabili **/
     int error = 0;
 
     /** Aggiungo un client al server **/
+    errno = 0;
     if((error = pthread_mutex_lock(cache->LRU_Access)) != 0) {
         errno = error;
         return -1;
@@ -610,12 +601,19 @@ int loginClient(LRU_Memory *cache) {
 }
 
 
+/**
+ * @brief               Mi indica il numero di client online in quell'istante
+ * @fun                 clientOnline
+ * @param cache         Memoria cache
+ * @return              Ritorna il numero di client connessi; [setta errno] in caso di errore
+ */
 unsigned int clientOnline(LRU_Memory *cache) {
     /** Variabili **/
     unsigned int online = 0;
     int error = 0;
 
     /** Aggiungo un client al server **/
+    errno = 0;
     if((error = pthread_mutex_lock(cache->LRU_Access)) != 0) {
         errno = error;
         return -1;
@@ -626,10 +624,17 @@ unsigned int clientOnline(LRU_Memory *cache) {
         return -1;
     }
 
+    errno = 0;
     return online;
 }
 
 
+/**
+ * @brief           Segnala la disconnessione di un client
+ * @fun             logoutClient
+ * @param cache     Memoria cache
+ * @return          Ritorna (0) in caso di successo; (-1) altrimenti [setta errno]
+ */
 int logoutClient(LRU_Memory *cache) {
     /** Variabili **/
     int error = 0;
@@ -713,7 +718,6 @@ int createFileToInsert(LRU_Memory *cache, const char *pathname, unsigned int max
         free(cl);
         destroyFile(&create);
         free(copy);
-        traceOnLog(cache->log, "ERRRROOOOREEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEE\n");
         errno = EPERM;
         return -1;
     }
@@ -723,11 +727,8 @@ int createFileToInsert(LRU_Memory *cache, const char *pathname, unsigned int max
         errno = error;
         return -1;
     }
-    traceOnLog(cache->log,"lllll%ld\n\n\n\n", strnlen(copy, MAX_PATHNAME)+1);
-    traceOnLog(cache->log, "%s -----> dimensione path %ld\n", copy, sizeof(copy));
     linksManage(cache, fd, (void *) pathname, 0, NULL);
     if(errno != 0) {
-        traceOnLog(cache->log, "MERDA\n");
         return -1;
     }
 
@@ -751,6 +752,7 @@ int openFileOnCache(LRU_Memory *cache, const char *pathname, int openFD) {
     myFile *toOpen = NULL;
 
     /** Controllo parametri **/
+    errno = 0;
     if(cache == NULL) { errno = EINVAL; return -1; }
     if(pathname == NULL) { errno = EINVAL; return -1; }
     if(openFD <= 0) { errno = EINVAL; return -1; }
@@ -786,11 +788,10 @@ int openFileOnCache(LRU_Memory *cache, const char *pathname, int openFD) {
     }
     linksManage(cache, openFD, (void *) pathname, 0, NULL);
     if(errno != 0) {
-        traceOnLog(cache->log, "merda\n");
         return -1;
     }
 
-
+    errno = 0;
     return result;
 }
 
@@ -812,6 +813,7 @@ int closeFileOnCache(LRU_Memory *cache, const char *pathname, int closeFD) {
     ClientFile *cl = NULL;
 
     /** Controllo variabili **/
+    errno = 0;
     if(cache == NULL) { errno = EINVAL; return -1; }
     if(pathname == NULL) { errno = EINVAL; return -1; }
     if(closeFD <= 0) { errno = EINVAL; return -1; }
@@ -872,8 +874,7 @@ int closeFileOnCache(LRU_Memory *cache, const char *pathname, int closeFD) {
         }
     }
     delete = linksManage(cache, closeFD, (void *)pathname, 1, findPath);
-    free(((userLink*)delete->data)->openFile), free(delete->data), free(delete);
-    //destroyQueue(&delete, free_userLink);
+    destroyQueue(&delete, free_userLink);
 
     errno = 0;
     return fdReturn;
@@ -901,6 +902,7 @@ myFile** addFileOnCache(LRU_Memory *cache, const char *pathname, int fd, int che
     Queue *uL = NULL;
 
     /** Controllo parametri **/
+    errno = 0;
     if(cache == NULL) { errno = EINVAL; return NULL; }
     if(pathname == NULL) { errno = EINVAL; return NULL; }
     if(fd <= 0) { errno = EINVAL; return NULL; }
@@ -951,8 +953,9 @@ myFile** addFileOnCache(LRU_Memory *cache, const char *pathname, int fd, int che
     if(icl_hash_find(cache->tabella, copy) != NULL) {
         pthread_mutex_unlock(cache->LRU_Access);
         uL = linksManage(cache, fd, (void *) pathname, 1, findPath);
-        if(uL != NULL) { traceOnLog(cache->log, "FACCIOsi\n");free(((userLink*)uL->data)->openFile), free(uL->data), free(uL); }
-            //destroyQueue(&delete, free_userLink); }
+        if(uL != NULL) {
+            destroyQueue(&uL, free_userLink);
+        }
         if (errno != 0) {
             destroyFile(&toAdd);
             free(copy);
@@ -984,15 +987,15 @@ myFile** addFileOnCache(LRU_Memory *cache, const char *pathname, int fd, int che
     while(--numKick >= 0) {
         index = -1;
         while((kickedFiles[numKick]->utentiConnessi)[++index] != -1) {
-            traceOnLog(cache->log, "perche\n");
             uL = linksManage(cache, (kickedFiles[numKick]->utentiConnessi)[index], (void *) (kickedFiles[numKick])->pathname, 1, findPath);
-            if(uL != NULL) {traceOnLog(cache->log, "si\n");destroyQueue(&uL, free_userLink); }
+            if(uL != NULL) { destroyQueue(&uL, free_userLink); }
             if(errno != 0) {
                 return kickedFiles;
             }
         }
     }
 
+    errno = 0;
     return kickedFiles;
 }
 
@@ -1002,6 +1005,7 @@ myFile** addFileOnCache(LRU_Memory *cache, const char *pathname, int fd, int che
  * @fun                     removeFileOnCache
  * @param cache             Memoria cache da cui estrarre il file
  * @param pathname          Pathname del file da rimuovere
+ * @param fd                Client che rimuove il file
  * @return                  Ritorna il file cancellato, altrimenti ritorna NULL (in caso di errore [setta errno])
  */
 myFile* removeFileOnCache(LRU_Memory *cache, const char *pathname, int fd) {
@@ -1012,6 +1016,7 @@ myFile* removeFileOnCache(LRU_Memory *cache, const char *pathname, int fd) {
     Queue *uL = NULL;
 
     /** Controllo parametri **/
+    errno = 0;
     if(cache == NULL) { errno = EINVAL; return NULL; }
     if(pathname == NULL) { errno = EINVAL; return NULL; }
 
@@ -1068,12 +1073,13 @@ myFile* removeFileOnCache(LRU_Memory *cache, const char *pathname, int fd) {
     index = -1;
     while((del->utentiConnessi)[++index] != -1) {
         uL = linksManage(cache, (del->utentiConnessi)[index], (void *) pathname, 1, findPath);
-        if(uL != NULL) { traceOnLog(cache->log, "fffff");destroyQueue(&uL, free_userLink); }
+        if(uL != NULL) { destroyQueue(&uL, free_userLink); }
         if(errno != 0) {
             return del;
         }
     }
 
+    errno = 0;
     return del;
 }
 
@@ -1083,19 +1089,21 @@ myFile* removeFileOnCache(LRU_Memory *cache, const char *pathname, int fd) {
  * @fun                         appendFile
  * @param cache                 Memoria cache
  * @param pathname              Pathname del file da aggiornare
+ * @param fd                    Client che aggiunge il contenuto al file
  * @param buffer                Buffer da aggiungere
  * @param size                  Dimensione del buffer da aggiungere
  * @return                      Ritorna gli eventuali file espulsi; in caso di errore valutare se si setta errno
  */
 myFile** appendFile(LRU_Memory *cache, const char *pathname, int fd, void *buffer, size_t size) {
     /** Variabili **/
-    myFile **kickedFiles = NULL, *toAdd = NULL, *fileToEdit = NULL;
+    myFile **kickedFiles = NULL, *toAdd = NULL;
     int error = 0, numKick = 0;
     int index = -1;
     char *copy = NULL;
     Queue *uL = NULL;
 
     /** Controllo parametri **/
+    errno = 0;
     if(cache == NULL) { errno = EINVAL; return NULL; }
     if(pathname == NULL) { errno = EINVAL; return NULL; }
     if(buffer == NULL) { errno = EINVAL; return NULL; }
@@ -1111,12 +1119,13 @@ myFile** appendFile(LRU_Memory *cache, const char *pathname, int fd, void *buffe
     }
     strncpy(copy, pathname, strnlen(pathname, MAX_PATHNAME)+1);
     LRU_Update(cache->LRU, cache->fileOnline);
-    if((fileToEdit = icl_hash_find(cache->tabella, copy)) == NULL) {
+    if((toAdd = icl_hash_find(cache->tabella, copy)) == NULL) {
         pthread_mutex_unlock(cache->LRU_Access);
         free(copy);
+        errno = ENOENT;
         return NULL;
     }
-    if((error = pthread_mutex_lock(fileToEdit->lockAccessFile)) != 0) {
+    if((error = pthread_mutex_lock(toAdd->lockAccessFile)) != 0) {
         pthread_mutex_unlock(cache->LRU_Access);
         free(copy);
         errno = error;
@@ -1125,50 +1134,50 @@ myFile** appendFile(LRU_Memory *cache, const char *pathname, int fd, void *buffe
     if(cache->maxBytesOnline < size) {
         icl_hash_delete(cache->tabella, (void *) copy, free, NULL);
         pthread_mutex_unlock(cache->LRU_Access);
-        pthread_mutex_unlock(fileToEdit->lockAccessFile);
+        pthread_mutex_unlock(toAdd->lockAccessFile);
         index = -1;
-        while ((fileToEdit->utentiConnessi)[++index] != -1) {
-            uL = linksManage(cache, (fileToEdit->utentiConnessi)[index], (void *) pathname, 1, findPath);
+        while ((toAdd->utentiConnessi)[++index] != -1) {
+            uL = linksManage(cache, (toAdd->utentiConnessi)[index], (void *) pathname, 1, findPath);
             if(uL != NULL) destroyQueue(&uL, free_userLink);
             if (errno != 0) {
                 return NULL;
             }
         }
-        destroyFile(&fileToEdit);
+        destroyFile(&toAdd);
         errno = ETXTBSY;
         return NULL;
     }
-    if(!fileIsOpenedFrom(fileToEdit, fd)) {
-        pthread_mutex_unlock(fileToEdit->lockAccessFile);
+    if(!fileIsOpenedFrom(toAdd, fd)) {
+        pthread_mutex_unlock(toAdd->lockAccessFile);
         pthread_mutex_unlock(cache->LRU_Access);
         free(copy);
         errno = EPERM;
         return NULL;
     }
-    if(fileToEdit->utenteLock != fd) {
-        pthread_mutex_unlock(fileToEdit->lockAccessFile);
+    if(toAdd->utenteLock != fd) {
+        pthread_mutex_unlock(toAdd->lockAccessFile);
         pthread_mutex_unlock(cache->LRU_Access);
         free(copy);
         errno = EPERM;
+        return NULL;
+    }
+    if(addContentToFile(toAdd, buffer, size) == -1) {
+        pthread_mutex_unlock(toAdd->lockAccessFile);
+        pthread_mutex_unlock(cache->LRU_Access);
+        free(copy);
         return NULL;
     }
     MEMORY_MISS(0, size);
-    if(addContentToFile(fileToEdit, buffer, size) == -1) {
-        pthread_mutex_unlock(fileToEdit->lockAccessFile);
-        pthread_mutex_unlock(cache->LRU_Access);
-        free(copy);
-        return kickedFiles;
-    }
     cache->bytesOnline += size;
     if((cache->numeroMassimoBytesCaricato) < (cache->bytesOnline)) (cache->numeroMassimoBytesCaricato) = (cache->bytesOnline);
-    if((error = pthread_mutex_unlock(fileToEdit->lockAccessFile)) != 0) {
-        pthread_mutex_unlock(fileToEdit->lockAccessFile);
+    if((error = pthread_mutex_unlock(toAdd->lockAccessFile)) != 0) {
+        pthread_mutex_unlock(toAdd->lockAccessFile);
         free(copy);
         errno = error;
         return kickedFiles;
     }
     if((error = pthread_mutex_unlock(cache->LRU_Access)) != 0) {
-        pthread_mutex_unlock(fileToEdit->lockAccessFile);
+        pthread_mutex_unlock(toAdd->lockAccessFile);
         free(copy);
         errno = error;
         return kickedFiles;
@@ -1186,6 +1195,7 @@ myFile** appendFile(LRU_Memory *cache, const char *pathname, int fd, void *buffe
     }
 
     free(copy);
+    errno = 0;
     return kickedFiles;
 }
 
@@ -1195,6 +1205,7 @@ myFile** appendFile(LRU_Memory *cache, const char *pathname, int fd, void *buffe
  * @fun                     readFileOnCache
  * @param cache             Memoria cache
  * @param pathname          Pathname del file da leggere
+ * @param fd                Client che legge il file dal server
  * @param dataContent       Contenuto del file
  * @return                  Ritorna la dimensione del buffer; (-1) altrimenti [setta errno]
  */
@@ -1205,6 +1216,7 @@ size_t readFileOnCache(LRU_Memory *cache, const char *pathname, int fd, void **d
     myFile *readF = NULL;
 
     /** Controllo parametri **/
+    errno = 0;
     if(cache == NULL) { errno = EINVAL; return -1; }
     if(pathname == NULL) { errno = EINVAL; return -1; }
 
@@ -1261,6 +1273,7 @@ size_t readFileOnCache(LRU_Memory *cache, const char *pathname, int fd, void **d
  * @brief               Legge N file in ordine della LRU non locked
  * @fun                 readRandFiles
  * @param cache         Memoria cache
+ * @param fd            Client che richiede la lettura dei file in modo random
  * @param N             Numero di file che si intende leggere
  * @return              Ritorna i file letti effettivamente; se ci sono errori viene settato errno e
  *                      viene ritornato NULL
@@ -1271,6 +1284,7 @@ myFile** readsRandFiles(LRU_Memory *cache, int fd, int *N) {
     int error = 0, index = -1, nReads = 0;
 
     /** Controllo parametri **/
+    errno = 0;
     if(cache == NULL) { errno = EINVAL; return NULL; }
 
     /** Leggo i file in ordine di inserimento nella LRU **/
@@ -1390,6 +1404,7 @@ int lockFileOnCache(LRU_Memory *cache, const char *pathname, int lockFD) {
     myFile *fileToLock = NULL;
 
     /** Controllo parametri **/
+    errno = 0;
     if(cache == NULL) { errno = EINVAL; return -1; }
     if(pathname == NULL) { errno = EINVAL; return -1; }
     if(lockFD <= 0) { errno = EINVAL; return -1; }
@@ -1424,6 +1439,7 @@ int lockFileOnCache(LRU_Memory *cache, const char *pathname, int lockFD) {
         return -1;
     }
 
+    errno = 0;
     return lockResult;
 }
 
@@ -1434,7 +1450,7 @@ int lockFileOnCache(LRU_Memory *cache, const char *pathname, int lockFD) {
  * @param cache             Memoria cache
  * @param pathname          Pathname del file da sbloccare
  * @param unlockFD          Fd che effettua la unlock
- * @return                  (0) se la unlock e' riuscita;
+ * @return                  In caso di successo ritorna Fd del client da sbloccare;
  *                          (-1) in caso di errore [setta errno]
  */
 int unlockFileOnCache(LRU_Memory *cache, const char *pathname, int unlockFD) {
@@ -1443,6 +1459,7 @@ int unlockFileOnCache(LRU_Memory *cache, const char *pathname, int unlockFD) {
     myFile *fileToUnlock = NULL;
 
     /** Controllo parametri **/
+    errno = 0;
     if(cache == NULL) { errno = EINVAL; return -1; }
     if(pathname == NULL) { errno = EINVAL; return -1; }
     if(unlockFD <= 0) { errno = EINVAL; return -1; }
@@ -1476,6 +1493,7 @@ int unlockFileOnCache(LRU_Memory *cache, const char *pathname, int unlockFD) {
         return -1;
     }
 
+    errno = 0;
     return unlockResult;
 }
 
@@ -1505,7 +1523,6 @@ int* deleteClientFromCache(LRU_Memory *cache, int fd) {
     errno=0;
     list = linksManage(cache, fd, (void *) NULL, 2, NULL);
     if((list == NULL) && (errno != 0)) {
-        traceOnLog(cache->log,"ANNANANANANNANANAN");
         return NULL;
     }
 
@@ -1516,11 +1533,9 @@ int* deleteClientFromCache(LRU_Memory *cache, int fd) {
     }
     del = (userLink *) deleteFirstElement(&list);
     while(del != NULL) {
-        traceOnLog(cache->log,"CANCELLO UNO");
         pathname = del->openFile;
         file = icl_hash_find(cache->tabella, pathname);
         if(file == NULL) {
-            traceOnLog(cache->log, "F\n\n\n");
             free_userLink(del);
             del = (userLink *) deleteFirstElement(&list);
             continue;
@@ -1531,9 +1546,9 @@ int* deleteClientFromCache(LRU_Memory *cache, int fd) {
             errno = error;
             return fdToUnlock;
         }
-        errno=0;
         app = unlockFile(file, fd);
         closeFile(file, fd);
+        errno = 0;
         if(app != -1) {
             numToUnlock++;
             if((new = (int *) realloc(fdToUnlock, (numToUnlock+1)*sizeof(int))) == NULL) {
@@ -1572,9 +1587,6 @@ int* deleteClientFromCache(LRU_Memory *cache, int fd) {
 void deleteLRU(Settings **serverMemory, LRU_Memory **cache) {
     /** Variabili **/
     int i = 0;
-//    icl_entry_t *entry = NULL;
-//    char *pathname = NULL;
-//    myFile *file = NULL;
 
 
     /** Dealloco le impostazioni **/
@@ -1607,12 +1619,8 @@ void deleteLRU(Settings **serverMemory, LRU_Memory **cache) {
         icl_hash_destroy((*cache)->tabella, free, free_file);
         icl_hash_destroy((*cache)->notAdded, free, free_ClientFile);
         i = -1;
-        printf("MAAAAAAAAAAAA%d\n", (*cache)->maxUsersLoggedOnline);
-        printf("%d\n", (*cache)->usersOnlineOpenFile);
         while(((*cache)->usersConnected)[++i] != NULL) {
-            if((((*cache)->usersConnected)[i]) != NULL) printf("%d\n", ((userLink *) ((*cache)->usersConnected)[i]->data)->fd);
             destroyQueue(&(((*cache)->usersConnected)[i]), free_userLink);
-            printf("CANCELLO\n");
         }
 
         free((*cache)->Files_Access);

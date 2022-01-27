@@ -1,8 +1,9 @@
 /**
  * @project             FILE_STORAGE_SERVER
- * @brief               Gestione delle API che ricevo dal client
+ * @brief               Gestione richieste del client
  * @author              Simone Tassotti
  * @date                03/01/2022
+ * @finish              26/01/2022
  */
 
 
@@ -11,16 +12,31 @@
 
     #define FILE_STORAGE_SERVER_LRU_SERVER_API_H
 
+
+    #ifndef _POSIX_C_SOURCE
+    #define _POSIX_C_SOURCE 2001112L
+    #endif
+
+
     #define O_CREATE 127
     #define O_LOCK 128
 
-    #define _POSIX_C_SOURCE 2001112L
+
     #include <stdlib.h>
     #include <stdio.h>
     #include <utils.h>
     #include <math.h>
     #include <FileStorageServer.h>
 
+
+    /**
+     * @brief       Argomenti per ogni thread del pool
+     * @struct      Task_Package
+     * @param fd    FD del client con cui comunica
+     * @param pfd   Pipe per scrivere FD da riabilitare
+     * @param cache Memoria cache da gestire per le richieste
+     * @param log   File di log per il tracciamento delle operazioni
+     */
     typedef struct {
         int fd;
         int pfd;
