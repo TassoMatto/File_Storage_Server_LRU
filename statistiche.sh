@@ -17,6 +17,7 @@ if [ ! -r "FileStorageServer.log" ]; then
   exit 22;
 fi
 
+# Punto il file con fd = 3
 exec 3<"FileStorageServer.log"
 
 nLocks=0
@@ -37,26 +38,31 @@ nWrite=0
 dimWrite=0
 while read -u 3 line; do
 
+  # Numero di read fatte
   echo $line | grep -q -e "Spedisco dati al client"
   if [ $? = 0 ]; then
       nWrite=$[$nWrite+1]
   fi
 
+  # Numero di write fatte
   echo $line | grep -q -e "Ricevuto dati dal client"
   if [ $? = 0 ]; then
       nRead=$[$nRead+1]
   fi
 
+  # Somma delle dimensioni delle write
   saveB=$(echo $line | grep -e "INVIATI" | cut -d ' ' -f 13 | cut -dB -f 1)
   if [ "$saveB" != "" ]; then
       dimWrite=$(echo "$dimWrite+$saveB" | bc -q)
   fi
 
+  # Somma delle dimensione delle read fatte
   saveB=$(echo $line | grep -e "RICEVUTI" | cut -d ' ' -f 16 | cut -dB -f 1)
   if [ "$saveB" != "" ]; then
       dimRead=$(echo "$dimRead+$saveB" | bc -q)
   fi
 
+  # Calcolo numero richieste fatte da ogni thread
   echo $line | grep -o ".* RICHIESTA: .*" | grep -q -v "ESITO"
   if [ $? -eq 0 ]; then
     index=$(echo $line | cut -f 2 -d '[' | cut -f 1 -d ']' | cut -f 2 -d ' ')
@@ -66,27 +72,38 @@ while read -u 3 line; do
     clientRequest[$index]=$[clientRequest[$index]+1]
   fi
 
+  # Numero di close
   echo $line | grep -q -e "closeFile.*eseguita correttamente"
   if [ $? -eq 0 ]; then
       nClose=$[$nClose+1]
   fi
+
+  # Numero di lock
   echo $line | grep -q -e " lockFile.*eseguita correttamente"
   if [ $? -eq 0 ]; then
         nLocks=$[$nLocks+1]
   fi
+
+  # Numero di unlock
   echo $line | grep -q -e "unlockFile.*eseguita correttamente"
-    if [ $? -eq 0 ]; then
-          nUnlock=$[$nUnlock+1]
-    fi
+  if [ $? -eq 0 ]; then
+        nUnlock=$[$nUnlock+1]
+  fi
+
+  # Numero di openLock
   echo $line | grep -q -e "openFile.* MODALITA': O_CREATE | O_LOCK - ESITO: eseguita correttamente"
   if [ $? = 0 ]; then
         nOpenlocks=$[$nOpenlocks+1]
   fi
+
+  # Numero di Capacity Miss
   echo $line | grep -q -e ".*ATTENZIONE.* File"
   if [ $? = 0 ]; then
       nowFile=$[$nowFile-1]
       nMiss=$[$nMiss+1]
   fi
+
+  # Numero di connessioni massimo contemporanee
   echo $line | grep -q -e "Accept(): client con fd:"
   if [ $? = 0 ]; then
     countConnected=$[$countConnected+1]
@@ -98,6 +115,8 @@ while read -u 3 line; do
   if [ $? = 0 ]; then
     countConnected=$[$countConnected-1]
   fi
+
+  # Massima capacità raggiunta dal server
   saveB=$(echo $line | grep -e "RIMOSSI" | cut -d ' ' -f 13 | cut -dB -f 1)
   if [ "$saveB" != "" ]; then
     nowByte=$(echo "$nowByte-$saveB" | bc -q)
@@ -106,6 +125,11 @@ while read -u 3 line; do
   if [ "$saveB" != "" ]; then
     nowByte=$(echo "$nowByte+$saveB" | bc -q)
   fi
+  if [ $maxDimBytes -lt $nowByte ]; then
+      maxDimBytes=$nowByte
+  fi
+
+  # Numero massimo di file raggiunto dal server
   echo $line | grep -q -e "writeFile.*ESITO: eseguita correttamente"
   if [ $? = 0 ]; then
     nowFile=$[$nowFile+1]
@@ -114,17 +138,13 @@ while read -u 3 line; do
   if [ $? = 0 ]; then
     nowFile=$[$nowFile-1]
   fi
-  if [ $maxDimBytes -lt $nowByte ]; then
-      maxDimBytes=$nowByte
-      echo $maxDimBytes
-  fi
-
   if [ $maxNumFile -lt $nowFile ]; then
-          maxNumFile=$nowFile
+    maxNumFile=$nowFile
   fi
 done
 
 
+# Output statistiche
 echo "Richieste di write:                   $nWrite"
 echo "Dimensione media richieste:           $(echo "scale=4;$dimWrite/$nWrite" | bc -q | awk '{printf "%.4f\n", $0}')B"
 echo "Richieste di read:                    $nWrite"

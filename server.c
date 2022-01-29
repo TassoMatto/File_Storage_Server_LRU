@@ -3,11 +3,12 @@
  * @brief               Programma principale di gestione del server
  * @author              Simone Tassotti
  * @date                22/12/2021
+ * @finish              29/01/2022
  */
 
-// valgrind --leak-check=full --show-leak-kinds=all --track-origins=yes  --track-fds=yes  ./server config.txt
+
 /** Header Files **/
-#define _POSIX_C_SOURCE 2001112L
+#define _POSIX_C_SOURCE 200809L
 #include <stdlib.h>
 #include <stdio.h>
 #include <string.h>
@@ -32,31 +33,29 @@
  * @macro                   freeServer
  * @param HARDSHOT          Parametro che mi indica la volonta' di spegnere il server rapidamente o meno
  */
-#define FREE_SERVER(HARDSHOT)                                       \
-    do {                                                            \
-        error = errno;                                              \
-        if(status != NULL) { free(status); }                        \
-        if(commitToPool != NULL) { free(commitToPool); }            \
-        if(pool != NULL) { stopThreadPool(pool, (HARDSHOT)); }                                                                 \
-        if(fd_sk != -1) { close(fd_sk); }                           \
-        for(fd = 0; fd <= fd_num; fd++) {                           \
-            if(FD_ISSET(fd, &setInit))                              \
-                close(fd);                                          \
-        }                                                            \
-        unlink(setServer->socket);                                  \
-        index = -1;                                                            \
-        while((cacheLRU->usersConnected)[++index] != NULL) {            \
-            printf("Elimonoooo\n");                                                        \
-            fd = ((userLink *) (cacheLRU->usersConnected)[index]->data)->fd;                                                   \
-            printf("%d\n", fd);close(fd);                                              \
-        }                                                           \
-        traceOnLog(log, "CIAOOOO\n");                                                            \
-        if(setServer != NULL) { deleteLRU(&setServer, &cacheLRU); } \
-        if(log != NULL) { printf("CI sonoooooooo\n");stopServerTracing(&log); }                \
-        if(pfd[0] != -1) { close(pfd[0]); }                         \
-        if(pfd[1] != -1) { close(pfd[1]); }                         \
-        if(handler != NULL) free(handler);                          \
-        errno = error;                                              \
+#define FREE_SERVER(HARDSHOT)                                                                                                   \
+    do {                                                                                                                        \
+        error = errno;                                                                                                          \
+        if(status != NULL) { free(status); }                                                                                    \
+        if(commitToPool != NULL) { free(commitToPool); }                                                                        \
+        if(pool != NULL) { stopThreadPool(pool, (HARDSHOT)); }                                                                  \
+        if(fd_sk != -1) { close(fd_sk); }                                                                                       \
+        for(fd = 0; fd <= max; fd++) {                                                                                          \
+            if(FD_ISSET(fd, &allFd))                                                                                            \
+                close(fd);                                                                                                      \
+        }                                                                                                                       \
+        unlink(setServer->socket);                                                                                              \
+        index = -1;                                                                                                             \
+        while((cacheLRU != NULL) && (cacheLRU->usersConnected != NULL) && ((cacheLRU->usersConnected)[++index] != NULL)) {      \
+            fd = ((userLink *) (cacheLRU->usersConnected)[index]->data)->fd;                                                    \
+            close(fd);                                                                                                          \
+        }                                                                                                                       \
+        deleteLRU(&setServer, &cacheLRU);                                                                                       \
+        if(log != NULL) { stopServerTracing(&log); }                                                                            \
+        if(pfd[0] != -1) { close(pfd[0]); }                                                                                     \
+        if(pfd[1] != -1) { close(pfd[1]); }                                                                                     \
+        if(handler != NULL) free(handler);                                                                                      \
+        errno = error;                                                                                                          \
     } while(0);
 
 
@@ -171,14 +170,12 @@ static void* signalHandler(void *argv) {
     switch (sig) {
         case SIGINT:
         case SIGQUIT:
-//            close(pfd[0]);
             close(pfd[1]);
             FD_CLR(pfd[0], set);
             *status = 1;
         break;
 
         default:
-            printf("\n\n\n\n\n\n\n\n\n\n\n\n\nDocile\n");
             *status = 0;
     }
 
@@ -191,12 +188,12 @@ int main(int argc, char **argv) {
     /** Variabili **/
     int *status = NULL;
     int index = -1;
-    int fd = 0, fd_sk = -1, fd_cl = -1, fd_num = 0, selectRes = -1;
+    int fd = 0, fd_sk = -1, fd_cl = -1, fd_num = 0, max = 0, selectRes = -1;
     int error = 0, pfd[2] = {-1, -1};
     int runnable = 1;
     ssize_t pipeBytes = -1;
     sigset_t set, oldset;
-    fd_set setInit, setRead;
+    fd_set setInit, setRead, allFd;
     struct sockaddr_un sock_addr;
     serverLogFile *log = NULL;
     threadPool *pool = NULL;
@@ -207,6 +204,8 @@ int main(int argc, char **argv) {
     Task *commitToPool = NULL;
     Task_Package *taskPackage = NULL;
     struct timeval selectRefreshig, saveSelectRefreshig;
+    FD_ZERO(&setInit);
+    FD_ZERO(&allFd);
 
     /** Controllo parametri **/
     if(argc != 2) {
@@ -292,9 +291,8 @@ int main(int argc, char **argv) {
 
     /** Preparazione degli fd da ascoltare in lettura **/
     if(fd_sk > fd_num) fd_num = fd_sk;
-    FD_ZERO(&setInit);
-    FD_SET(fd_sk, &setInit);            //Abilito il listen socket
-    FD_SET(pfd[0], &setInit);           //Abilito la pipe in lettura sulla select
+    FD_SET(fd_sk, &setInit), FD_SET(fd_sk, &allFd);            //Abilito il listen socket
+    FD_SET(pfd[0], &setInit), FD_SET(fd_sk, &allFd);           //Abilito la pipe in lettura sulla select
 
     /** Avvio del thread pool **/
     if((pool = startThreadPool(setServer->numeroThreadWorker, free_task, log)) == NULL) {
@@ -346,7 +344,7 @@ int main(int argc, char **argv) {
             exit(errno);
         } else if (selectRes <= 0 && runnable) continue;
 
-        TRACE_ON_LOG("[THREAD MANAGER]: Select: nuovi fd pronti in lettura...  %d\n", clientOnline(cacheLRU))
+        TRACE_ON_LOG("[THREAD MANAGER]: Select: nuovi fd pronti in lettura...\n")
         for(fd = 0; fd <= fd_num; fd++) {
             if(FD_ISSET(fd, &setRead)) {
                 TRACE_ON_LOG("[THREAD MANAGER]: fd:\"%d\" pronto in lettura\n", fd)
@@ -362,24 +360,20 @@ int main(int argc, char **argv) {
                         exit(errno);
                     }
                     (cacheLRU->numTotLogin)++;
-                    FD_SET(fd_cl, &setInit);
+                    FD_SET(fd_cl, &setInit), FD_SET(fd_cl, &allFd);
                     if(fd_cl > fd_num) fd_num = fd_cl;
+                    if(max < fd_num) max = fd_num;
                     TRACE_ON_LOG("[THREAD MANAGER]: Accept(): client con fd:\"%d\" accettato\n", fd_cl)
                 } else if(fd == pfd[0]) { /** Richiesta di riabilitazione di un client in lettura o chiusura della connessione col server **/
                     TRACE_ON_LOG("[THREAD MANAGER]: Pipe pronta in lettura: riabilitazione vecchi fd disabilitati\n")
                     pipeBytes = read(pfd[0], &fd_cl, sizeof(int));
-                    printf("%ld\n\n\n\n", pipeBytes);
                     while(pipeBytes > 0) {
                         /** Controllo che il client non abbia chiuso la comunicazione **/
                         if ((fcntl(fd_cl, F_GETFD) != -1) || (errno != EBADF)) {
                             TRACE_ON_LOG("[THREAD MANAGER]: Client con fd:\"%d\" riabilitato\n", fd_cl)
                             FD_SET(fd_cl, &setInit);
                             if (fd_cl > fd_num) fd_num = fd_cl;
-                        } //else {
-//                            TRACE_ON_LOG("[THREAD MANAGER]: Client con fd:\"%d\" connessione chiusa\n", fd_cl)
-//                            close(fd_cl);
-//                            errno = 0;
-//                        }
+                        }
                         pipeBytes = read(pfd[0], &fd_cl, sizeof(int));
                     }
                     if(errno == EAGAIN) continue;

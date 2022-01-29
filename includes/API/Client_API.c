@@ -3,6 +3,7 @@
  * @brief               API per la connessione al server da parte del client
  * @author              Simone Tassotti
  * @date                07/01/2022
+ * @finish              29/01/2022
  */
 
 
@@ -160,7 +161,7 @@ int readFileFromDisk(const char *pathname, void **buf, size_t *size) {
         }
     }
     if(fclose(readF) != 0) {
-        free(*buf);
+        free(*buf), *buf = NULL;
         *size = 0;
         return -1;
     }
@@ -238,6 +239,15 @@ int writeFileIntoDisk(const char *pathname, const char *dirname, void *buf, size
 }
 
 
+/**
+ * @brief                   Legge, data una directory, al max n file (se specificato)
+ *                          sia nella cartella corrente sia nelle sottocartelle
+ * @fun                     readNFileFromDir
+ * @param dirname           Nome della cartella da cui leggere
+ * @param n                 Massimo numero di file da leggere
+ * @return                  Ritorna, in caso di successo, la lista dei file che è riuscita
+ *                          a leggere; NULL in caso di errore [setta errno]
+ */
 char** readNFileFromDir(const char *dirname, size_t n) {
     /** Variabili **/
     DIR *d = NULL;
@@ -267,13 +277,17 @@ char** readNFileFromDir(const char *dirname, size_t n) {
         free(old_dirname);
         return NULL;
     }
-    if(n == 0) n = INT_MAX;
+    if(n == 0) { n = INT_MAX; }
 
-    while(!quit)
-    {
+    while(!quit) {
         if(chdir(pathname_dir) == -1) {
             free(pathname_dir);
             free(old_dirname);
+            i = -1;
+            while((list != NULL) && (list[++i] != NULL)) {
+                free(list[i]);
+            }
+            if(list != NULL) { free(list); }
             return NULL;
         }
         if((d = opendir(".")) == NULL) {
@@ -281,10 +295,14 @@ char** readNFileFromDir(const char *dirname, size_t n) {
             destroyQueue(&subDir, free);
             free(pathname_dir);
             free(old_dirname);
+            i = -1;
+            while((list != NULL) && (list[++i] != NULL)) {
+                free(list[i]);
+            }
+            if(list != NULL) { free(list); }
             return NULL;
         }
-        while(((errno = 0, dir_point = readdir(d)) != NULL) && (i<(n+2)))
-        {
+        while(((errno = 0, dir_point = readdir(d)) != NULL) && (i<(n+2))) {
             /** Analizzo tutti i file e sottocartelle presenti ad esclusione di "." e ".." **/
             if(stat(dir_point->d_name, &buf) == -1) {
                 closedir(d);
@@ -292,6 +310,11 @@ char** readNFileFromDir(const char *dirname, size_t n) {
                 destroyQueue(&subDir, free);
                 free(pathname_dir);
                 free(old_dirname);
+                i = -1;
+                while((list != NULL) && (list[++i] != NULL)) {
+                    free(list[i]);
+                }
+                if(list != NULL) { free(list); }
                 return NULL;
             }
             /**
@@ -305,6 +328,11 @@ char** readNFileFromDir(const char *dirname, size_t n) {
                     if(chdir(old_dirname) == -1) perror("chdir");
                     free(pathname_dir);
                     free(old_dirname);
+                    i = -1;
+                    while((list != NULL) && (list[++i] != NULL)) {
+                        free(list[i]);
+                    }
+                    if(list != NULL) { free(list); }
                     return NULL;
                 }
                 strncpy(queue_el, dir_point->d_name, strnlen(dir_point->d_name, MAX_PATHNAME)+1);
@@ -315,6 +343,11 @@ char** readNFileFromDir(const char *dirname, size_t n) {
                     closedir(d);
                     if(chdir(old_dirname) == -1) perror("chdir");
                     free(old_dirname);
+                    i = -1;
+                    while((list != NULL) && (list[++i] != NULL)) {
+                        free(list[i]);
+                    }
+                    if(list != NULL) { free(list); }
                     return NULL;
                 }
                 i++;
@@ -325,7 +358,6 @@ char** readNFileFromDir(const char *dirname, size_t n) {
                     while(list[j] != NULL)
                         free(list[j++]);
                     free(list);
-
                     closedir(d);
                     if(chdir(old_dirname) == -1) perror("chdir");
                     free(pathname_dir);
@@ -896,7 +928,6 @@ int appendToFile(const char *pathname, void *buf, size_t size, const char *dirna
             return -1;
         }
     }
-    printf("JOIOEFWFIOJWEJWEOJWEFEWIOJFEIOFEWJFEWFEWJFWEIOFEWJFEEWFWEJ\n\n\n\n\n\n\n");
 
     /** Ricevo la risposta e valuto l'esito **/
     if(receiveMSG(fd_server, (void **) &result, NULL) <= 0) {
@@ -905,7 +936,6 @@ int appendToFile(const char *pathname, void *buf, size_t size, const char *dirna
         if(result != NULL) free(result);
         return -1;
     }
-    printf("99999999999999999999999999999999999999999999999999999999999999999999999\n\n\n\n\n\n\n");
 
     res = *result;
     if(bufKick != NULL) free(bufKick), bufKick = NULL;

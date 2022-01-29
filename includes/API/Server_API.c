@@ -50,7 +50,7 @@
 void* ServerTasks(unsigned int numeroDelThread, void *argv) {
     /** Variabili **/
     int *locks = NULL;
-    int pipe = -1, *fd = NULL, *flags = NULL, *N = NULL;
+    int isSetErrno = 0, pipe = -1, *fd = NULL, *flags = NULL, *N = NULL;
     char *request = NULL, *pathname = NULL, errorMsg[MAX_BUFFER_LEN];
     void *bufferFile = NULL;
     myFile **kickedFiles = NULL, **readFiles = NULL;
@@ -146,7 +146,7 @@ void* ServerTasks(unsigned int numeroDelThread, void *argv) {
         }
         switch (*flags) {
             case 0:
-                res = openFileOnCache(cache, pathname, *fd);
+                res = openFileOnCache(cache, pathname, *fd), isSetErrno = errno;
                 if((res == 0) && (traceOnLog(log, "[THREAD %d]: CLIENT: %d - RICHIESTA: openFile - FILE: %s - MODALITA': %s - ESITO: eseguita correttamente\n", numeroDelThread, *fd, pathname, LOG_PRINT_FLAGS) == -1)) {
                     CLIENT_GOODBYE;
                     close(*fd);
@@ -166,7 +166,7 @@ void* ServerTasks(unsigned int numeroDelThread, void *argv) {
                     return (void *) &errno;
                 }
                 if(res == -1) {
-                    if(strerror_r(errno, errorMsg, MAX_BUFFER_LEN) != 0) {
+                    if(strerror_r(isSetErrno, errorMsg, MAX_BUFFER_LEN) != 0) {
                         CLIENT_GOODBYE;
                         close(*fd);
                         free(fd);
@@ -222,8 +222,9 @@ void* ServerTasks(unsigned int numeroDelThread, void *argv) {
                 errno = 0;
                 if(createFileToInsert(cache, pathname, cache->maxUtentiPerFile, *fd, (*flags == (O_CREATE | O_LOCK))) == -1) res = -1;
                 else res = 0;
+                isSetErrno = errno;
 
-                if(strerror_r(errno, errorMsg, MAX_BUFFER_LEN) != 0) {
+                if(strerror_r(isSetErrno, errorMsg, MAX_BUFFER_LEN) != 0) {
                     CLIENT_GOODBYE;
                     close(*fd);
                     free(fd);
@@ -253,7 +254,7 @@ void* ServerTasks(unsigned int numeroDelThread, void *argv) {
                     return (void *) &errno;
                 }
                 if(res == -1) {
-                    if((bytes = sendMSG(*fd, (void *) &errno, sizeof(int))) <= 0) {
+                    if((bytes = sendMSG(*fd, (void *) &isSetErrno, sizeof(int))) <= 0) {
                         CLIENT_GOODBYE;
                         close(*fd);
                         free(fd);
@@ -474,7 +475,7 @@ void* ServerTasks(unsigned int numeroDelThread, void *argv) {
     /** readNFiles **/
     if(strncmp(request, "readNFiles", (size_t) fmax(11, (double) requestSize)) == 0) {
         /** Variabili blocco **/
-        int isSetErrno = 0, index = -1, res = 0;
+        int index = -1, res = 0;
 
         /** Ricevo il numero di file che il client vuole leggere **/
         if(traceOnLog(log, "[THREAD %d]: CLIENT: %d - RICHIESTA: readNFiles\n", numeroDelThread, *fd) == -1) {
@@ -503,7 +504,7 @@ void* ServerTasks(unsigned int numeroDelThread, void *argv) {
         }
         readFiles = readsRandFiles(cache, *fd, N);
         isSetErrno = errno;
-        if((bytes = sendMSG(*fd, (void *) &errno, sizeof(int))) <= 0) {
+        if((bytes = sendMSG(*fd, (void *) &isSetErrno, sizeof(int))) <= 0) {
             CLIENT_GOODBYE;
             index = -1;
             while(readFiles[++index] != NULL) {
@@ -734,7 +735,7 @@ void* ServerTasks(unsigned int numeroDelThread, void *argv) {
     /** writeFile **/
     if(strncmp(request, "writeFile", (size_t) fmax(10, (double) requestSize)) == 0) {
         /** Variabili blocco **/
-        int isSetErrno = 0, index = -1, res = 0;
+        int index = -1, res = 0;
 
         /** Ricevo il pathname e scrivo tutto il file fisico nella memoria cache **/
         if((bytes = receiveMSG(*fd, (void **) &pathname, NULL)) <= 0) {
@@ -957,7 +958,7 @@ void* ServerTasks(unsigned int numeroDelThread, void *argv) {
     if(strncmp(request, "appendToFile", (size_t) fmax(13, (double) requestSize)) == 0) {
         /** Variabili blocco **/
         size_t dimFile = -1;
-        int index = -1, res = 0, isSetErrno = 0;
+        int index = -1, res = 0;
 
         /** Leggo pathname e buffer del file da aggiornare **/
         if((bytes = receiveMSG(*fd, (void **) &pathname, NULL)) <= 0) {
@@ -1243,8 +1244,9 @@ void* ServerTasks(unsigned int numeroDelThread, void *argv) {
             return (void *) &errno;
         }
         if(((res = lockFileOnCache(cache, pathname, *fd)) == -1) || (res == 0) || (res == *fd)) {
+            isSetErrno = errno;
             if(res == -1) {
-                if(strerror_r(errno, errorMsg, MAX_BUFFER_LEN) != 0) {
+                if(strerror_r(isSetErrno, errorMsg, MAX_BUFFER_LEN) != 0) {
                     CLIENT_GOODBYE;
                     free(pathname);
                     close(*fd);
@@ -1345,9 +1347,9 @@ void* ServerTasks(unsigned int numeroDelThread, void *argv) {
             free(request);
             return (void *) &errno;
         }
-        res = unlockFileOnCache(cache, pathname, *fd);
+        res = unlockFileOnCache(cache, pathname, *fd), isSetErrno = errno;
         if(res == -1) {
-            if(strerror_r(errno, errorMsg, MAX_BUFFER_LEN) != 0) {
+            if(strerror_r(isSetErrno, errorMsg, MAX_BUFFER_LEN) != 0) {
                 CLIENT_GOODBYE;
                 free(pathname);
                 close(*fd);
@@ -1496,9 +1498,9 @@ void* ServerTasks(unsigned int numeroDelThread, void *argv) {
             free(request);
             return (void *) &errno;
         }
-        res = closeFileOnCache(cache, pathname, *fd);
+        res = closeFileOnCache(cache, pathname, *fd), isSetErrno = errno;
         if(res == -1) {
-            if(strerror_r(errno, errorMsg, MAX_BUFFER_LEN) != 0) {
+            if(strerror_r(isSetErrno, errorMsg, MAX_BUFFER_LEN) != 0) {
                 CLIENT_GOODBYE;
                 free(pathname);
                 close(*fd);
@@ -1544,7 +1546,7 @@ void* ServerTasks(unsigned int numeroDelThread, void *argv) {
                 }
             }
         }
-        if((bytes = sendMSG(*fd, (void *) &errno, sizeof(int))) <= 0) {
+        if((bytes = sendMSG(*fd, (void *) &isSetErrno, sizeof(int))) <= 0) {
             CLIENT_GOODBYE;
             free(pathname);
             close(*fd);
@@ -1596,7 +1598,7 @@ void* ServerTasks(unsigned int numeroDelThread, void *argv) {
             free(request);
             return (void *) &errno;
         }
-        resCancellazione = removeFileOnCache(cache, pathname, *fd);
+        resCancellazione = removeFileOnCache(cache, pathname, *fd), isSetErrno = errno;
         if((bytes = sendMSG(*fd, (void *) &errno, sizeof(int))) <= 0) {
             CLIENT_GOODBYE;
             free(pathname);
@@ -1616,8 +1618,9 @@ void* ServerTasks(unsigned int numeroDelThread, void *argv) {
             errno = ECOMM;
             return (void *) &errno;
         }
-        if(errno == 0) {
-            removed = resCancellazione->size;
+        if(isSetErrno == 0) {
+            if(resCancellazione != NULL) removed = resCancellazione->size;
+            else removed = 0;
             if(traceOnLog(log, "[THREAD %d]: CLIENT: %d - RICHIESTA: closeFile - FILE: %s - ESITO: eseguita correttamente\n", numeroDelThread, *fd, pathname) == -1) {
                 CLIENT_GOODBYE;
                 free(pathname);
@@ -1640,7 +1643,7 @@ void* ServerTasks(unsigned int numeroDelThread, void *argv) {
                 }
             }
         } else {
-            if(strerror_r(errno, errorMsg, MAX_BUFFER_LEN) != 0) {
+            if(strerror_r(isSetErrno, errorMsg, MAX_BUFFER_LEN) != 0) {
                 CLIENT_GOODBYE;
                 free(pathname);
                 close(*fd);

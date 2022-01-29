@@ -3,13 +3,19 @@
  * @brief               API per la connessione al server da parte del client
  * @author              Simone Tassotti
  * @date                07/01/2022
+ * @finish              29/01/2022
  */
+
 
 #ifndef FILE_STORAGE_SERVER_LRU_CLIENT_API_H
 
 
+
+    #ifndef _POSIX_C_SOURCE
+        #define _POSIX_C_SOURCE 2001112L
+    #endif
     #define FILE_STORAGE_SERVER_LRU_CLIENT_API_H
-    #define _POSIX_C_SOURCE 2001112L
+
     #define O_CREATE 127
     #define O_LOCK 128
 
@@ -57,6 +63,13 @@
     int writeFileIntoDisk(const char *, const char *, void *, size_t);
 
 
+    /**
+     * @brief                   Legge, data una directory, al max n file (se specificato)
+     *                          sia nella cartella corrente sia nelle sottocartelle
+     * @fun                     readNFileFromDir
+     * @return                  Ritorna, in caso di successo, la lista dei file che è riuscita
+     *                          a leggere; NULL in caso di errore [setta errno]
+     */
     char** readNFileFromDir(const char *, size_t);
 
 

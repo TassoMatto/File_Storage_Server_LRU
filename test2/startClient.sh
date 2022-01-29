@@ -11,10 +11,10 @@ fi
 # Attendo 4 secondi prima di avviare i client
 sleep 4
 for (( index = 1; index <= 5; index++ )); do
-  ./client -f socket.sk -p -w ./test2/${index} &
+  ./client -f socket.sk -p -w ./test2/${index} -D ./test2/tmp &
 done
-sleep 3
 
+sleep 2
 # Mando il segnale di arresto al server
 kill -1 $1
 

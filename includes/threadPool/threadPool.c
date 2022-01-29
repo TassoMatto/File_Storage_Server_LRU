@@ -142,7 +142,7 @@ static void* start_routine(void *argv) {
             break;
         }
         (pool->numeroTaskInCoda)--;
-        if(pool->taskQueue == NULL) pool->isEmpty = 1;
+        if((pool->taskQueue == NULL) && (!pool->shutdown)) pool->isEmpty = 1;
         UNLOCK_POOL(NULL)
         TRACE_ON_LOG(0, &errno, "[THREAD %d]: Estratto dalla queue nuovo task da eseguire\n", numeroDelThread)
         t = (Task *) uncastedTask;

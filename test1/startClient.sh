@@ -10,10 +10,11 @@ fi
 
 # Attendo 4 secondi prima di avviare i client
 sleep 4
-./client -f ./socket.sk -p -t 200 -w ./test1/client/send -W ./test1/client/test1_file1.txt -D ./test1/tmp -R n=3 -d ./test1/tmp1 -r /mnt/c/Users/Simone/CLionProjects/File_Storage_Server_LRU/test1/client/test1_file1.txt -d ./test1/tmp \
--l /mnt/c/Users/Simone/CLionProjects/File_Storage_Server_LRU/test1/client/test1_file1.txt -u /mnt/c/Users/Simone/CLionProjects/File_Storage_Server_LRU/test1/client/test1_file1.txt \
--c /mnt/c/Users/Simone/CLionProjects/File_Storage_Server_LRU/test1/client/send/1
+./client -f ./socket.sk -p -t 200 -w ./test1/client/send -W ./test1/client/test1_file1.txt -D ./test1/tmp -R n=3 -d ./test1/tmp1 -r $PWD/test1/client/test1_file1.txt -d ./test1/tmp \
+-l $PWD/test1/client/test1_file1.txt -u $PWD/test1/client/test1_file1.txt \
+-c $PWD/test1/client/send/1
 
+sleep 2
 # Mando il segnale di arresto al server
 kill -1 $1
 

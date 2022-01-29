@@ -8,6 +8,8 @@
 
 
 #define _POSIX_C_SOURCE 2001112L
+
+
 #include <stdlib.h>
 #include <stdio.h>
 #include <unistd.h>
@@ -89,7 +91,6 @@
         struct timespec timer;              \
         timer = (option->time);             \
         saveT = timer;                      \
-        printf("Timer\n\n\n");              \
         nanosleep(&timer, &saveT);          \
     }
 
@@ -102,10 +103,17 @@
         free(copyArgv);                                             \
         closeConnection(option->sockname);                          \
         if(option->sockname != NULL) { free(option->sockname); }    \
+        if(option->pathnameArray_W != NULL) { free(option->pathnameArray_W); }  \
         if(option->dirname_w != NULL) { free(option->dirname_w); }  \
         if(option->dirname_D != NULL) { free(option->dirname_D); }  \
+        if(option->pathnameArray_r != NULL) { free(option->pathnameArray_r); }  \
+        if(option->dirname_d != NULL) { free(option->dirname_d); }  \
+        if(option->pathnameArray_l != NULL) { free(option->pathnameArray_l); }  \
+        if(option->pathnameArray_c != NULL) { free(option->pathnameArray_c); }  \
+        if(option->pathnameArray_u != NULL) { free(option->pathnameArray_u); }  \
         free(option);                                               \
     }while(0)
+
 
 /**
  * @brief                   Struttura dati che mi contiene tutte le info sulle richieste fatte
@@ -244,37 +252,29 @@ static void orderRequest(int argc, char **argv) {
     if(argv == NULL) return;
 
     /** Ordino le richieste in ordine di importanza **/
-    while(i < argc)
-    {
-        if(!strncmp(argv[i], "-h", 2))
-        {
+    while(i < argc) {
+        if(!strncmp(argv[i], "-h", 2)) {
             if(i == 1) { i++; continue; }
             SHIFT(i, argv, argc, 1)
             h = 1;
             return;
-        }
-        else if(!strncmp(argv[i], "-t", 2))
-        {
+        } else if(!strncmp(argv[i], "-t", 2)) {
             ((i+1 < argc) && (strchr(argv[i+1], '-') == NULL)) ? (t = 1) : (t = 2);
             if(i == 1+h+p) { i+=t; continue; }
             SHIFT(i, argv, argc, 1+h)
-        }
-        else if(!strncmp(argv[i], "-p", 2))
-        {
+        } else if(!strncmp(argv[i], "-p", 2)) {
             p = 1;
             if(i == 1+h) { i++; continue; }
             SHIFT(i, argv, argc, 1+h+t)
-        }
-        else if(!strncmp(argv[i], "-f", 2))
-        {
+        } else if(!strncmp(argv[i], "-f", 2)) {
             if(i == 1+h+p+t) { ((i+1 < argc) && (strchr(argv[i+1], '-') == NULL)) ? (i+=2) : (i++); continue; }
             SHIFT(i, argv, argc, 1+h+p+t)
-        }
-        else { i++; }
+        } else { i++; }
     }
 }
 
 
+/** Main **/
 int main(int argc, const char **argv) {
     /** Variabili **/
     long time = -1;
@@ -341,7 +341,8 @@ int main(int argc, const char **argv) {
                     option->t = 1;
                     if((time = isNumber(optarg)) == -1) {
                         DESTROY_ALL;
-                        exit(errno);
+                        fprintf(stderr, "Argomento per impostare il timer errato\n");
+                        usage();
                     }
                     (option->time).tv_nsec = 0;
                     (option->time).tv_sec = time/1000;
@@ -375,7 +376,7 @@ int main(int argc, const char **argv) {
                     exit(errno);
                 }
                 strncpy(option->sockname, optarg, strnlen(optarg, MAX_PATHNAME)+1);
-                timeout.tv_sec = 3;
+                timeout.tv_sec = 1;
                 timeout.tv_nsec = 0;
 
                 /** Tentativo di connessione al server fino a 10 sec dalla richiesta ogni 500 msec **/
@@ -442,7 +443,7 @@ int main(int argc, const char **argv) {
                         if(strerror_r(errno, errorMessage, MAX_BUFFER_LEN) == 0) {
                             TRACE_ON_DISPLAY("Lettura dei file da %s fallito\n", option->dirname_w)
                         }
-                        free(option->dirname_w), option->dirname_w = NULL, option->w = 0, option->numDirectory_w = 0;
+                        if(option->dirname_w != NULL) free(option->dirname_w), option->dirname_w = NULL, option->w = 0, option->numDirectory_w = 0;
                         errno = 0;
                         break;
                     }
@@ -450,14 +451,14 @@ int main(int argc, const char **argv) {
                     buf = NULL;
                     while((files != NULL) && (files[++i] != NULL)) {
                         if(stat(files[i], &checkFile) == -1) {
-                            TRACE_ON_DISPLAY("Impossibile leggere il file %s\n", files[i])
+                            TRACE_ON_DISPLAY("Impossibile identificare %s\n", files[i])
                         } else if(!S_ISREG(checkFile.st_mode)) {
                             TRACE_ON_DISPLAY("%s non è un file\n", files[i])
                         } else if((abs_pathname = abs_path(files[i])) == NULL) {
                             TRACE_ON_DISPLAY("Calcolo path assoluto fallito\n")
                         } else if(readFileFromDisk(abs_pathname, &buf, &dimBuf) == -1) {
                             if(strerror_r(errno, errorMessage, MAX_BUFFER_LEN) == 0) {
-                                TRACE_ON_DISPLAY("Lettura del file %s fallita\n", files[i])
+                                TRACE_ON_DISPLAY("Lettura di %s dal disco fallita\n", files[i])
                             }
                         } else if(openFile(abs_pathname, (O_CREATE | O_LOCK)) == -1) {
                             if(errno == EPERM) {
@@ -469,15 +470,17 @@ int main(int argc, const char **argv) {
                             if(errno == EACCES) {
                                 TRACE_ON_DISPLAY("File:%s - Aggiunta non riuscita per mancanza di diritti su di esso\n", files[i])
                             } else if(errno == EAGAIN) {
-                                TRACE_ON_DISPLAY("File:%s già presente in memoria, scrittura fallità\n", files[i])
+                                TRACE_ON_DISPLAY("File:%s già presente in memoria, scrittura fallita\n", files[i])
                             } else if(strerror_r(errno, errorMessage, MAX_BUFFER_LEN) == 0) {
-                                TRACE_ON_DISPLAY("Impossibile scrivere il file '%s' - Errore: %s\n", files[i], errorMessage)
+                                TRACE_ON_DISPLAY("Impossibile scrivere %s - Errore: %s\n", files[i], errorMessage)
                             }
                         } else if(appendToFile(abs_pathname, buf, dimBuf, option->dirname_D) == -1) {
                             if(errno == EACCES) {
                                 TRACE_ON_DISPLAY("File:%s - Aggiunta contenuto non consentita\n", files[i])
                             } else if(errno == EPERM) {
                                 TRACE_ON_DISPLAY("File:%s - File in fase di lock da un altro utente - Impossibile aggiornarlo\n", files[i])
+                            } else if(errno == ENOENT) {
+                                TRACE_ON_DISPLAY("File:%s non presente in memoria/espulso in precedenza\n", files[i])
                             } else if(strerror_r(errno, errorMessage, MAX_BUFFER_LEN) == 0) {
                                 TRACE_ON_DISPLAY("Impossibile aggiornare il file '%s' - Errore: %s\n", files[i], errorMessage)
                             }
@@ -504,8 +507,8 @@ int main(int argc, const char **argv) {
                         if(abs_pathname != NULL) free(abs_pathname), abs_pathname = NULL;
                         free(files[i]);
                     }
-                    free(files), files = NULL;
-                    free(option->dirname_w), option->dirname_w = NULL;
+                    if(files != NULL) free(files), files = NULL;
+                    if(option->dirname_w != NULL) free(option->dirname_w), option->dirname_w = NULL;
                     option->w = 0;
                 }
             break;
@@ -530,7 +533,7 @@ int main(int argc, const char **argv) {
                     option->dirname_D = NULL;
                     while((files != NULL) && (files[++i] != NULL)) {
                         if(stat(files[i], &checkFile) == -1) {
-                            TRACE_ON_DISPLAY("Impossibile leggere il file %s\n", files[i])
+                            TRACE_ON_DISPLAY("Impossibile identificare il file %s\n", files[i])
                             errno = 0;
                         } else if(!S_ISREG(checkFile.st_mode)) {
                             TRACE_ON_DISPLAY("%s non è un file\n", files[i])
@@ -539,7 +542,7 @@ int main(int argc, const char **argv) {
                             TRACE_ON_DISPLAY("Calcolo path assoluto fallito\n")
                             errno = 0;
                         } else if(readFileFromDisk(abs_pathname, &buf, &dimBuf) == -1) {
-                            TRACE_ON_DISPLAY("Lettura del file %s fallita\n", files[i])
+                            TRACE_ON_DISPLAY("Lettura di %s dal disco fallita\n", files[i])
                             errno = 0;
                         } else if(openFile(abs_pathname, (O_CREATE | O_LOCK)) == -1) {
                             if(errno == EPERM) {
@@ -560,6 +563,8 @@ int main(int argc, const char **argv) {
                                 TRACE_ON_DISPLAY("File:%s - Aggiunta contenuto non consentita\n", files[i])
                             } else if(errno == EPERM) {
                                 TRACE_ON_DISPLAY("File:%s - File in fase di lock da un altro utente - Impossibile aggiornarlo\n", files[i])
+                            } else if(errno == ENOENT) {
+                                TRACE_ON_DISPLAY("File:%s non presente in memoria/espulso in precedenza\n", files[i])
                             } else if(strerror_r(errno, errorMessage, MAX_BUFFER_LEN) == 0) {
                                 TRACE_ON_DISPLAY("Impossibile aggiornare il file '%s' - Errore: %s\n", files[i], errorMessage)
                             }
@@ -621,17 +626,13 @@ int main(int argc, const char **argv) {
                     i = -1;
                     while((files != NULL) && (files[++i] != NULL)) {
                         if(stat(files[i], &checkFile) == -1) {
-                            TRACE_ON_DISPLAY("Impossibile leggere il file %s\n", files[i])
-                            errno = 0;
+                            TRACE_ON_DISPLAY("Impossibile identificare il file %s\n", files[i])
                         } else if(!S_ISREG(checkFile.st_mode)) {
                             TRACE_ON_DISPLAY("%s non è un file\n", files[i])
-                            errno = 0;
                         } else if((abs_pathname = abs_path(files[i])) == NULL) {
                             TRACE_ON_DISPLAY("Calcolo path assoluto fallito\n")
-                            errno = 0;
                         } else if(readFileFromDisk(abs_pathname, &buf, &dimBuf) == -1) {
                             TRACE_ON_DISPLAY("Lettura del file %s fallita\n", files[i])
-                            errno = 0;
                         } else if(openFile(abs_pathname, (O_CREATE | O_LOCK)) == -1) {
                             if(errno == EPERM) {
                                 TRACE_ON_DISPLAY("Impossibile aprire il file '%s' - File già presente nel server\n", files[i])
@@ -651,6 +652,8 @@ int main(int argc, const char **argv) {
                                 TRACE_ON_DISPLAY("File:%s - Aggiunta contenuto non consentita\n", files[i])
                             } else if(errno == EPERM) {
                                 TRACE_ON_DISPLAY("File:%s - File in fase di lock da un altro utente - Impossibile aggiornarlo\n", files[i])
+                            } else if(errno == ENOENT) {
+                                TRACE_ON_DISPLAY("File:%s non presente in memoria/espulso in precedenza\n", files[i])
                             } else if(strerror_r(errno, errorMessage, MAX_BUFFER_LEN) == 0) {
                                 TRACE_ON_DISPLAY("Impossibile aggiornare il file '%s' - Errore: %s\n", files[i], errorMessage)
                             }
@@ -678,8 +681,8 @@ int main(int argc, const char **argv) {
                         if(abs_pathname != NULL) free(abs_pathname), abs_pathname = NULL;
                         free(files[i]);
                     }
-                    if(files != NULL) free(files), option->pathnameArray_W = NULL, files = NULL;
-                    if(option->pathnameArray_W == NULL) free(option->pathnameArray_W), option->pathnameArray_W = NULL, option->numW = 0;
+                    if(files != NULL) free(files), files = NULL;
+                    option->pathnameArray_W = NULL, option->numW = 0;
                     option->W = 0;
                 }
                 if(option->w) {
@@ -697,19 +700,15 @@ int main(int argc, const char **argv) {
                     i = -1;
                     while((files != NULL) && (files[++i] != NULL)) {
                         if(stat(files[i], &checkFile) == -1) {
-                            TRACE_ON_DISPLAY("Impossibile leggere il file %s\n", files[i])
-                            errno = 0;
+                            TRACE_ON_DISPLAY("Impossibile identificare il file %s\n", files[i])
                         } else if(!S_ISREG(checkFile.st_mode)) {
                             TRACE_ON_DISPLAY("%s non è un file\n", files[i])
-                            errno = 0;
                         } else if((abs_pathname = abs_path(files[i])) == NULL) {
                             TRACE_ON_DISPLAY("Calcolo path assoluto fallito\n")
-                            errno = 0;
                         } else if(readFileFromDisk(abs_pathname, &buf, &dimBuf) == -1) {
                             if(strerror_r(errno, errorMessage, MAX_BUFFER_LEN) == 0) {
                                 TRACE_ON_DISPLAY("Lettura del file %s fallita\n", files[i])
                             }
-                            errno = 0;
                         } else if(openFile(abs_pathname, (O_CREATE | O_LOCK)) == -1) {
                             if(errno == EPERM) {
                                 TRACE_ON_DISPLAY("Impossibile aprire il file '%s' - File già presente nel server\n", files[i])
@@ -727,6 +726,8 @@ int main(int argc, const char **argv) {
                         } else if(appendToFile(abs_pathname, buf, dimBuf, option->dirname_D) == -1) {
                             if(errno == EACCES) {
                                 TRACE_ON_DISPLAY("File:%s - Aggiunta contenuto non consentita\n", files[i])
+                            } else if(errno == ENOENT) {
+                                TRACE_ON_DISPLAY("File:%s non presente in memoria/espulso in precedenza\n", files[i])
                             } else if(errno == EPERM) {
                                 TRACE_ON_DISPLAY("File:%s - File in fase di lock da un altro utente - Impossibile aggiornarlo\n", files[i])
                             } else if(strerror_r(errno, errorMessage, MAX_BUFFER_LEN) == 0) {
@@ -756,11 +757,11 @@ int main(int argc, const char **argv) {
                         if(abs_pathname != NULL) free(abs_pathname), abs_pathname = NULL;
                         free(files[i]);
                     }
-                    free(files), files = NULL;
-                    free(option->dirname_w), option->dirname_w = NULL, option->dirname_w = NULL;
+                    if(files != NULL) free(files), files = NULL;
+                    if(option->dirname_w != NULL) free(option->dirname_w), option->dirname_w = NULL;
                     option->w = 0;
                 }
-                free(option->dirname_D), option->dirname_D = NULL;
+                if(option->dirname_D != NULL) free(option->dirname_D), option->dirname_D = NULL;
                 option->D = 0;
             break;
 
@@ -806,7 +807,7 @@ int main(int argc, const char **argv) {
                         buf = NULL;
                         free(files[i]);
                     }
-                    free(files);
+                    if(files != NULL) free(files), files = NULL;
                     option->pathnameArray_r = NULL;
                     option->r = 0;
                     option->numr = 0;
@@ -841,7 +842,7 @@ int main(int argc, const char **argv) {
                             TRACE_ON_DISPLAY("Errore nella lettura random dei file dal server - Error: %s\n", errorMessage)
                         }
                     }
-                    TRACE_ON_DISPLAY("Letti dal server %d file\n", reads);
+                    TRACE_ON_DISPLAY("Letti dal server %d file\n", reads)
                     option->numFile_R = 0, option->R = 0;
                 }
             break;
@@ -902,7 +903,7 @@ int main(int argc, const char **argv) {
                         buf = NULL;
                         free(files[i]);
                     }
-                    free(files);
+                    if(files != NULL) free(files), files = NULL;
                     option->pathnameArray_r = NULL;
                     option->r = 0;
                     option->numr = 0;
@@ -916,7 +917,7 @@ int main(int argc, const char **argv) {
                             TRACE_ON_DISPLAY("Errore nella lettura random dei file dal server - Error: %s\n", errorMessage)
                         }
                     }
-                    TRACE_ON_DISPLAY("Letti dal server %d file\n", reads);
+                    TRACE_ON_DISPLAY("Letti dal server %d file\n", reads)
                     option->numFile_R = 0, option->R = 0;
                 }
                 free(option->dirname_d), option->dirname_d = NULL;
@@ -954,7 +955,7 @@ int main(int argc, const char **argv) {
                     }
                     free(files[i]);
                 }
-                free(files);
+                if(files != NULL) free(files), files = NULL;
                 option->l = 0;
                 option->numl = 0;
                 option->pathnameArray_l = NULL;
@@ -979,8 +980,7 @@ int main(int argc, const char **argv) {
                         if(strerror_r(errno, errorMessage, MAX_BUFFER_LEN) == 0) {
                             TRACE_ON_DISPLAY("Impossibile effettuare la unlock del file \"%s\" - Errore: %s\n", files[i], errorMessage)
                         }
-                    }
-                    if(closeFile(files[i])) {
+                    } else if(closeFile(files[i])) {
                         if(strerror_r(errno, errorMessage, MAX_BUFFER_LEN) == 0) {
                             TRACE_ON_DISPLAY("Impossibile chiudere il file \"%s\" - Errore: %s\n", files[i], errorMessage)
                         }
@@ -989,7 +989,7 @@ int main(int argc, const char **argv) {
                     }
                     free(files[i]);
                 }
-                free(files);
+                if(files != NULL) free(files), files = NULL;
                 option->u = 0;
                 option->numu = 0;
                 option->pathnameArray_u = NULL;
@@ -1004,9 +1004,9 @@ int main(int argc, const char **argv) {
                     exit(errno);
                 }
                 DELETE_POINT;
-                option->pathnameArray_u = files;
-                option->numu = numFile;
-                option->u = 1;
+                option->pathnameArray_c = files;
+                option->numc = numFile;
+                option->c = 1;
                 i = -1;
                 DELAY
                 while((files != NULL) && (files[++i] != NULL)) {
@@ -1026,7 +1026,7 @@ int main(int argc, const char **argv) {
                     }
                     free(files[i]);
                 }
-                free(files);
+                if(files != NULL) free(files), files = NULL;
                 option->c = 0;
                 option->numc = 0;
                 option->pathnameArray_c = NULL;
